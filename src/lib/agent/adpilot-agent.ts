@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { loadBrain } from "../brain/load-brain";
-import { auditCampaigns, buildIntelligencePlaybook, jtdLabel } from "../intelligence-engine";
+import { auditCampaigns, buildAccountDiagnosis, buildIntelligencePlaybook, jtdLabel } from "../intelligence-engine";
 import type { AuditResult } from "../intelligence-domain";
 import { runLiveMetaAudit, type LiveMetaAudit } from "../meta/live-audit";
 import { liveCampaignsToHistory } from "../meta/live-intelligence";
@@ -28,12 +28,13 @@ type ResponseItem = { type?: string; name?: string; call_id?: string; arguments?
 type OpenAiResponse = { id?: string; output?: ResponseItem[]; output_text?: string };
 
 const tools = [
-  functionTool("get_live_account_audit", "Retrieve the current account's fixed 60-day live Meta audit. Call this before making claims about account performance.", { type: "object", properties: {}, additionalProperties: false }),
+  functionTool("get_live_account_audit", "Retrieve the current account's fixed 60-day live Meta audit. Call this before making claims about account performance.", { type: "object", properties: {}, required: [], additionalProperties: false }),
   functionTool("get_top_campaigns", "Return campaigns from the current audit, ranked either by spend or by evidence-qualified performance.", {
     type: "object",
     properties: { rankBy: { type: "string", enum: ["spend", "evidence"] }, limit: { type: "integer", minimum: 1, maximum: 10 } },
     required: ["rankBy", "limit"], additionalProperties: false,
   }),
+  functionTool("get_account_diagnosis", "Return the deterministic account diagnosis: objective-specific leaders, highest-spend waste candidates, spend concentration, and leaders by region, product, and job-to-be-done.", { type: "object", properties: {}, required: [], additionalProperties: false }),
   functionTool("get_campaign_evidence", "Return deterministic scoring evidence and live metrics for a campaign ID returned by another tool.", {
     type: "object", properties: { campaignId: { type: "string" } }, required: ["campaignId"], additionalProperties: false,
   }),
@@ -81,6 +82,8 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
     "You may explain the AdPilot brain but must never override any scored value, tier, gate, or budget.",
     "Creative formats are factual only when their source is Meta returned; otherwise say Not enough data.",
     "Do not claim causality. Finish with a concise next action. Campaign execution is unavailable.",
+    "For an account audit, use get_account_diagnosis after get_live_account_audit. Lead with a short TL;DR, then What is working, What needs attention, Patterns by region/product/JTD, and Next three actions.",
+    "Never call a highest-spend campaign a winner unless its deterministic tier is winner. Clearly distinguish spend leaders from performance leaders.",
     brainProse,
   ].join("\n\n");
 
@@ -146,6 +149,7 @@ async function executeTool(tool: string, args: Record<string, unknown>, state: T
     return { audit, results, value: auditSummary(audit, results) };
   }
   if (!state.audit) throw new AgentRuntimeError("Run get_live_account_audit before using other account tools.");
+  if (tool === "get_account_diagnosis") return { value: buildAccountDiagnosis(state.results) };
   if (tool === "get_top_campaigns") return { value: topCampaigns(state.results, args) };
   if (tool === "get_campaign_evidence") return { value: campaignEvidence(state.results, args) };
   if (tool === "get_dimension_patterns") return { value: dimensionPatterns(state.results, args) };

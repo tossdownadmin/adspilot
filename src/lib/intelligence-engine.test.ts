@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { auditCampaigns, buildIntelligencePlaybook, deriveMetrics, retrieveReferences, significanceFailures } from "./intelligence-engine";
+import { auditCampaigns, buildAccountDiagnosis, buildIntelligencePlaybook, deriveMetrics, retrieveReferences, significanceFailures } from "./intelligence-engine";
 import { demoCampaigns } from "./intelligence-fixtures";
 
 describe("campaign intelligence audit", () => {
@@ -37,6 +37,21 @@ describe("campaign intelligence audit", () => {
     const smallCohort = results.filter((result) => result.cohortSize < 5 && result.significant);
     expect(smallCohort.every((result) => result.tier !== "winner" && result.tier !== "kill_candidate")).toBe(true);
     expect(smallCohort.every((result) => result.eligibleReference === false)).toBe(true);
+  });
+
+  it("falls back to objective peers when a specific JTD has too few comparisons", () => {
+    const loneJtd = { ...demoCampaigns[0], campaignId: "camp_lone_jtd", name: "Lapsed Buyer Test", jtd: "reactivate_lapsed" as const };
+    const fallback = auditCampaigns([...demoCampaigns, loneJtd]).find((result) => result.campaign.campaignId === loneJtd.campaignId);
+    expect(fallback?.cohortKey).toBe("sales:all");
+    expect(fallback?.cohortSize).toBeGreaterThanOrEqual(5);
+  });
+
+  it("produces an objective-aware account diagnosis", () => {
+    const diagnosis = buildAccountDiagnosis(results);
+    expect(diagnosis.summary.campaigns).toBe(results.length);
+    expect(diagnosis.bestByObjective.sales?.[0].winningMetric).toBeTruthy();
+    expect(diagnosis.wasteCandidates.every((campaign) => campaign.tier === "underperformer" || campaign.tier === "kill_candidate")).toBe(true);
+    expect(diagnosis.dimensionLeaders.region.length).toBeGreaterThan(0);
   });
 });
 

@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowRight, BrainCircuit, CheckCircle2, ChevronLeft, Clipboard, Database, FileJson, Filter, Info, LoaderCircle, RefreshCw, Search, ShieldCheck, Sparkles, Target, TriangleAlert, Trophy, XCircle } from "lucide-react";
-import type { AuditResult, IntelligenceObjective, IntelligencePlaybook, Jtd, NewCampaignBrief, PerformanceTier, ReferenceSelection } from "@/lib/intelligence-domain";
+import type { AccountDiagnosis, AuditResult, IntelligenceObjective, IntelligencePlaybook, Jtd, NewCampaignBrief, PerformanceTier, ReferenceSelection } from "@/lib/intelligence-domain";
 import type { LiveMetaAudit } from "@/lib/meta/live-audit";
 
 const tierMeta: Record<PerformanceTier, { label: string; icon: typeof Trophy }> = {
@@ -14,6 +14,7 @@ const tierMeta: Record<PerformanceTier, { label: string; icon: typeof Trophy }> 
 export function IntelligenceLab({ account, onChooseAccount }: { account?: { id: string; name: string; currency?: string }; onChooseAccount: () => void }) {
   const [audit, setAudit] = useState<LiveMetaAudit>();
   const [results, setResults] = useState<AuditResult[]>([]);
+  const [diagnosis, setDiagnosis] = useState<AccountDiagnosis>();
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const counts = useMemo(() => results.reduce<Record<string, number>>((value, result) => ({ ...value, [result.tier]: (value[result.tier] ?? 0) + 1 }), {}), [results]);
@@ -54,6 +55,7 @@ export function IntelligenceLab({ account, onChooseAccount }: { account?: { id: 
     setError("");
     setAudit(undefined);
     setResults([]);
+    setDiagnosis(undefined);
     setSelected(undefined);
     try {
       const response = await fetch("/api/meta/audit", {
@@ -61,11 +63,12 @@ export function IntelligenceLab({ account, onChooseAccount }: { account?: { id: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accountId: account.id }),
       });
-      const body = await response.json() as { audit?: LiveMetaAudit; intelligenceResults?: AuditResult[]; message?: string; error?: string };
+      const body = await response.json() as { audit?: LiveMetaAudit; intelligenceResults?: AuditResult[]; diagnosis?: AccountDiagnosis; message?: string; error?: string };
       if (!response.ok || !body.audit) throw new Error(body.message || body.error || "Meta intelligence data is unavailable.");
       if (body.audit.accountId !== account.id) throw new Error("Meta returned data for a different ad account. Please reconnect and try again.");
       setAudit(body.audit);
       setResults(body.intelligenceResults ?? []);
+      setDiagnosis(body.diagnosis);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Meta intelligence data is unavailable.");
     } finally {
@@ -100,7 +103,12 @@ export function IntelligenceLab({ account, onChooseAccount }: { account?: { id: 
     {agentError && <div className="panel live-audit-error simple-agent-result"><TriangleAlert size={20} /><div><strong>AdPilot needs attention</strong><p>{agentError}</p></div></div>}
     {agentAnswer && <section className="panel simple-agent-result"><span className="eyebrow">AdPilot&apos;s answer</span><div className="agent-answer-copy">{agentAnswer}</div></section>}
     {running ? <div className="panel simple-snapshot"><LoaderCircle className="spin" size={20} /><div><strong>Refreshing account snapshot…</strong><p>You can already ask AdPilot a question above.</p></div></div> : error ? <div className="panel live-audit-error"><TriangleAlert size={20} /><div><strong>Account snapshot unavailable</strong><p>{error}</p><button className="text-button" onClick={() => void loadLiveIntelligence()}>Try again</button></div></div> : audit?.campaigns.status === "unavailable" ? <div className="panel live-audit-error"><TriangleAlert size={24} /><h2>Campaign reporting unavailable</h2><p>{audit.campaigns.message}</p></div> : results.length === 0 ? <div className="panel empty-live-audit"><Info size={26} /><h2>Not enough data</h2><p>Meta returned no delivered campaigns for this 60-day window.</p></div> : selected ? <CampaignEvidence result={selected} onBack={() => setSelected(undefined)} /> : <>
-      <div className="simple-snapshot panel"><div><span className="eyebrow">Live account snapshot</span><h2>{results.length} campaigns analyzed</h2><p>{counts.winner ?? 0} winners · {counts.contender ?? 0} contenders · {counts.underperformer ?? 0} underperformers</p></div><button className="text-button" onClick={onChooseAccount}>Change account <ArrowRight size={14} /></button></div>
+      <div className="simple-snapshot panel"><div><span className="eyebrow">Live account diagnosis</span><h2>{results.length} campaigns analyzed</h2><p>{counts.winner ?? 0} winners · {counts.contender ?? 0} contenders · {counts.underperformer ?? 0} underperformers{diagnosis?.summary.spendConcentrated ? ` · Top campaigns hold ${(diagnosis.summary.topSpendShare * 100).toFixed(0)}% of spend` : ""}</p></div><button className="text-button" onClick={onChooseAccount}>Change account <ArrowRight size={14} /></button></div>
+      {diagnosis && <div className="diagnosis-grid">
+        <section className="panel diagnosis-card"><span className="eyebrow">What is working</span>{Object.entries(diagnosis.bestByObjective).flatMap(([objective, campaigns]) => (campaigns ?? []).slice(0, 1).map((campaign) => <div key={campaign.campaignId}><strong>{campaign.name}</strong><small>{objective} · score {campaign.score.toFixed(2)} · strongest signal: {campaign.winningMetric}</small></div>))}</section>
+        <section className="panel diagnosis-card"><span className="eyebrow">Where to investigate waste</span>{diagnosis.wasteCandidates.length ? diagnosis.wasteCandidates.slice(0, 3).map((campaign) => <div key={campaign.campaignId}><strong>{campaign.name}</strong><small>{campaign.tier.replaceAll("_", " ")} · ${campaign.spend.toLocaleString()} spend · {campaign.reason}</small></div>) : <p>No evidence-qualified waste candidates in this window.</p>}</section>
+        <section className="panel diagnosis-card"><span className="eyebrow">Best patterns found</span>{([...[...diagnosis.dimensionLeaders.region].slice(0, 1), ...diagnosis.dimensionLeaders.product.slice(0, 1), ...diagnosis.dimensionLeaders.jtd.slice(0, 1)]).map((pattern) => <div key={`${pattern.value}-${pattern.campaigns}`}><strong>{pattern.value}</strong><small>{pattern.campaigns} campaigns · average score {pattern.averageScore.toFixed(2)} · {pattern.winners} winners</small></div>)}</section>
+      </div>}
       <details className="advanced-results"><summary>See detailed campaign evidence</summary><AuditDashboard results={results} counts={counts} filter={filter} setFilter={setFilter} dimension={dimension} setDimension={setDimension} select={setSelected} onBuild={() => setTab("brief")} currency={account.currency || "USD"} /></details>
       {tab === "brief" && <PlaybookBuilder accountId={account.id} results={results} currency={account.currency || "USD"} onBack={() => setTab("audit")} onGenerated={() => setTab("playbook")} />}
     </>}

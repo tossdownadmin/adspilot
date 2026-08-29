@@ -12,7 +12,13 @@ const scoringSchema = z.object({
   metricRules: z.object(Object.fromEntries(objectiveKeys.map((key) => [key, z.array(metricRuleSchema).min(1)])) as Record<typeof objectiveKeys[number], z.ZodArray<typeof metricRuleSchema>>).strict(),
   tierThresholds: z.object({ winner: z.number(), contender: z.number(), underperformer: z.number() }).strict(),
   guards: z.object({ salesRoasMultiplier: z.number().positive(), costGuardMultiplier: z.number().positive(), killCostMultiplier: z.number().positive() }).strict(),
-  cohort: z.object({ minForRelativeScoring: z.number().int().positive() }).strict(),
+  cohort: z.object({ minForRelativeScoring: z.number().int().positive(), fallbackToObjective: z.boolean() }).strict(),
+  diagnosis: z.object({
+    topPerObjective: z.number().int().positive(),
+    wasteLimit: z.number().int().positive(),
+    concentrationCampaignCount: z.number().int().positive(),
+    highConcentrationShare: z.number().min(0).max(1),
+  }).strict(),
   nuance: z.object({ frequencySaturationThreshold: z.number().positive() }).strict(),
   normalization: z.object({ method: z.literal("min_max"), tieValue: z.number().min(0).max(1) }).strict(),
 }).strict();

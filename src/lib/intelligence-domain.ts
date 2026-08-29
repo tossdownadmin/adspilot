@@ -66,6 +66,13 @@ export type AuditResult = {
   rationale: string;
 };
 
+export type AccountDiagnosis = {
+  summary: { campaigns: number; significantCampaigns: number; totalSpend: number; scoredSpend: number; topSpendShare: number; spendConcentrated: boolean };
+  bestByObjective: Partial<Record<IntelligenceObjective, Array<{ campaignId: string; name: string; tier: PerformanceTier; score: number; spend: number; winningMetric: string; winningMetricValue: number | null }>>>;
+  wasteCandidates: Array<{ campaignId: string; name: string; tier: PerformanceTier; spend: number; reason: string }>;
+  dimensionLeaders: Record<"region" | "product" | "jtd", Array<{ value: string; campaigns: number; spend: number; averageScore: number; winners: number }>>;
+};
+
 export type NewCampaignBrief = {
   region: string;
   product: string;

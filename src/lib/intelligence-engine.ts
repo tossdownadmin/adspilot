@@ -1,4 +1,4 @@
-import type { AuditResult, DerivedMetrics, HistoricalCampaign, IntelligenceObjective, IntelligencePlaybook, Jtd, MetricContribution, NewCampaignBrief, ReferenceSelection } from "./intelligence-domain";
+import type { AccountDiagnosis, AuditResult, DerivedMetrics, HistoricalCampaign, IntelligenceObjective, IntelligencePlaybook, Jtd, MetricContribution, NewCampaignBrief, ReferenceSelection } from "./intelligence-domain";
 import { loadBrain } from "./brain/load-brain";
 
 type MetricRule = { key: keyof DerivedMetrics | "conversions"; weight: number; direction: "higher" | "lower" };
@@ -37,8 +37,11 @@ function median(values: number[]) { const sorted = [...values].sort((a,b) => a-b
 export function auditCampaigns(campaigns: HistoricalCampaign[]): AuditResult[] {
   const prepared = campaigns.map((campaign) => ({ campaign, metrics: deriveMetrics(campaign), gateFailures: significanceFailures(campaign) }));
   return prepared.map((item) => {
-    const cohort = prepared.filter((peer) => peer.campaign.objective === item.campaign.objective && peer.campaign.jtd === item.campaign.jtd && peer.gateFailures.length === 0);
-    const cohortKey = `${item.campaign.objective}:${item.campaign.jtd}`;
+    const specificCohort = prepared.filter((peer) => peer.campaign.objective === item.campaign.objective && peer.campaign.jtd === item.campaign.jtd && peer.gateFailures.length === 0);
+    const objectiveCohort = prepared.filter((peer) => peer.campaign.objective === item.campaign.objective && peer.gateFailures.length === 0);
+    const useObjectiveFallback = brain.scoring.cohort.fallbackToObjective && specificCohort.length < brain.scoring.cohort.minForRelativeScoring;
+    const cohort = useObjectiveFallback ? objectiveCohort : specificCohort;
+    const cohortKey = useObjectiveFallback ? `${item.campaign.objective}:all` : `${item.campaign.objective}:${item.campaign.jtd}`;
     if (item.gateFailures.length) return { ...item, significant: false, cohortKey, cohortSize: cohort.length, score: null, tier: "insufficient_data", contributions: [], eligibleReference: false, nuanceFlags: [], rationale: `Insufficient evidence: ${item.gateFailures.join(", ").replaceAll("_", " ")}.` };
     const contributions: MetricContribution[] = metricRules[item.campaign.objective].map((rule) => {
       const rawValue = valueFor(item.campaign, item.metrics, rule.key) ?? 0;
@@ -71,6 +74,48 @@ export function auditCampaigns(campaigns: HistoricalCampaign[]): AuditResult[] {
     const strongest = [...contributions].sort((a,b) => b.contribution - a.contribution)[0];
     return { ...item, significant: true, cohortKey, cohortSize: cohort.length, score, tier, contributions, eligibleReference, nuanceFlags, rationale: `${item.campaign.campaignId} scored ${score.toFixed(2)} in ${cohortKey}; ${strongest.metric} contributed ${strongest.contribution.toFixed(3)}.` };
   });
+}
+
+export function buildAccountDiagnosis(results: AuditResult[]): AccountDiagnosis {
+  const significant = results.filter((result) => result.significant && result.score !== null);
+  const totalSpend = results.reduce((sum, result) => sum + result.campaign.spend, 0);
+  const scoredSpend = significant.reduce((sum, result) => sum + result.campaign.spend, 0);
+  const concentrationCount = brain.scoring.diagnosis.concentrationCampaignCount;
+  const topSpend = [...results].sort((left, right) => right.campaign.spend - left.campaign.spend).slice(0, concentrationCount).reduce((sum, result) => sum + result.campaign.spend, 0);
+  const topSpendShare = totalSpend > 0 ? round(topSpend / totalSpend) : 0;
+  const bestByObjective: AccountDiagnosis["bestByObjective"] = {};
+  for (const objective of ["sales", "leads", "traffic", "awareness"] as IntelligenceObjective[]) {
+    const ranked = significant.filter((result) => result.campaign.objective === objective).sort((left, right) => (right.score ?? 0) - (left.score ?? 0));
+    if (!ranked.length) continue;
+    bestByObjective[objective] = ranked.slice(0, brain.scoring.diagnosis.topPerObjective).map((result) => {
+      const strongest = [...result.contributions].sort((left, right) => right.contribution - left.contribution)[0];
+      return { campaignId: result.campaign.campaignId, name: result.campaign.name, tier: result.tier, score: result.score ?? 0, spend: result.campaign.spend, winningMetric: strongest?.metric ?? "not_enough_data", winningMetricValue: strongest?.rawValue ?? null };
+    });
+  }
+  const wasteCandidates = significant
+    .filter((result) => result.tier === "kill_candidate" || result.tier === "underperformer")
+    .sort((left, right) => right.campaign.spend - left.campaign.spend)
+    .slice(0, brain.scoring.diagnosis.wasteLimit)
+    .map((result) => ({ campaignId: result.campaign.campaignId, name: result.campaign.name, tier: result.tier, spend: result.campaign.spend, reason: result.nuanceFlags.includes("audience_saturation") ? "High frequency and weak relative performance" : `Bottom-tier ${result.campaign.objective} performance versus comparable campaigns` }));
+  const dimensionLeaders = {
+    region: rankDiagnosisDimension(significant, "region"),
+    product: rankDiagnosisDimension(significant, "product"),
+    jtd: rankDiagnosisDimension(significant, "jtd"),
+  };
+  return { summary: { campaigns: results.length, significantCampaigns: significant.length, totalSpend: round(totalSpend, 2), scoredSpend: round(scoredSpend, 2), topSpendShare, spendConcentrated: topSpendShare >= brain.scoring.diagnosis.highConcentrationShare }, bestByObjective, wasteCandidates, dimensionLeaders };
+}
+
+function rankDiagnosisDimension(results: AuditResult[], key: "region" | "product" | "jtd") {
+  const groups = new Map<string, { value: string; campaigns: number; spend: number; scoreTotal: number; winners: number }>();
+  for (const result of results) {
+    const value = String(result.campaign[key] || "unknown");
+    if (value === "Unknown" || value === "unknown" || value === "Not enough data") continue;
+    const group = groups.get(value) ?? { value, campaigns: 0, spend: 0, scoreTotal: 0, winners: 0 };
+    group.campaigns += 1; group.spend += result.campaign.spend; group.scoreTotal += result.score ?? 0;
+    if (result.tier === "winner") group.winners += 1;
+    groups.set(value, group);
+  }
+  return [...groups.values()].map((group) => ({ value: group.value, campaigns: group.campaigns, spend: round(group.spend, 2), averageScore: round(group.scoreTotal / group.campaigns), winners: group.winners })).sort((left, right) => right.averageScore - left.averageScore || right.spend - left.spend).slice(0, 5);
 }
 
 const ladder = brain.retrieval.closestBestLadder as Array<Array<"region" | "product" | "jtd" | "objective">>;

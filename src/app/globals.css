@@ -759,4 +759,11 @@ main { min-height: calc(100vh - 62px); }
 .advanced-results { margin-top: 12px; }
 .advanced-results > summary { cursor: pointer; color: #1c6b50; font-weight: 700; padding: 14px 2px; }
 .advanced-results .audit-summary { margin-top: 8px; }
+.diagnosis-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+.diagnosis-card { padding: 18px; }
+.diagnosis-card > div { display: grid; gap: 3px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.diagnosis-card > div:last-child { border-bottom: 0; }
+.diagnosis-card strong { font-size: 12px; }
+.diagnosis-card small, .diagnosis-card p { color: var(--muted); font-size: 10px; line-height: 1.45; }
 @media (max-width: 760px) { .simple-agent-actions, .simple-snapshot { align-items: stretch; flex-direction: column; } .simple-agent-actions .button { width: 100%; } }
+@media (max-width: 900px) { .diagnosis-grid { grid-template-columns: 1fr; } }

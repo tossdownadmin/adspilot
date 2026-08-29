@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { runLiveMetaAudit } from "@/lib/meta/live-audit";
-import { auditCampaigns } from "@/lib/intelligence-engine";
+import { auditCampaigns, buildAccountDiagnosis } from "@/lib/intelligence-engine";
 import { liveCampaignsToHistory } from "@/lib/meta/live-intelligence";
 import { getMetaSession, META_SESSION_COOKIE } from "@/lib/meta/session-store";
 
@@ -23,7 +23,8 @@ export async function POST(request: Request) {
   try {
     const audit = await runLiveMetaAudit(session.accessToken, parsed.data.accountId);
     const intelligenceResults = audit.campaigns.status === "ok" ? auditCampaigns(liveCampaignsToHistory(audit.campaigns.data, audit.window)) : [];
-    return NextResponse.json({ audit, intelligenceResults });
+    const diagnosis = buildAccountDiagnosis(intelligenceResults);
+    return NextResponse.json({ audit, intelligenceResults, diagnosis }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return NextResponse.json(
       { error: "PROVIDER_UNAVAILABLE", message: error instanceof Error ? error.message : "The live audit could not run." },
