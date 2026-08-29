@@ -277,7 +277,10 @@ function creativeBreakdown(audit: LiveMetaAudit, args: Record<string, unknown>) 
       impressions: item.impressions ?? 0, reach: item.reach ?? 0, clicks: item.clicks ?? 0, ctr: item.ctr === undefined ? null : item.ctr > 1 ? item.ctr / 100 : item.ctr,
       cpc: item.cpc ?? null, cpm: item.cpm ?? null, frequency: item.frequency ?? null, conversions: item.purchases ?? item.results ?? 0,
       costPerResult: item.costPerResult ?? null, creativeFormat: item.creativeFormat ?? "Not enough data",
-      campaignId: item.campaignId ?? null, adSetId: item.adSetId ?? null, creativeName: item.creativeName ?? null, thumbnailUrl: item.thumbnailUrl ?? null,
+      campaignId: item.campaignId ?? null, adSetId: item.adSetId ?? null, creativeName: item.creativeName ?? null,
+      assetUrl: item.imageUrl ?? item.videoUrl ?? item.thumbnailUrl ?? null, assetQuality: item.imageUrl || item.videoUrl ? "full_asset_returned" : item.thumbnailUrl ? "thumbnail_only" : "not_returned",
+      primaryText: item.primaryText ?? null, headline: item.headline ?? null, callToAction: item.callToAction ?? null,
+      thumbnailUrl: item.thumbnailUrl ?? null,
     })),
   };
 }

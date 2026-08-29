@@ -32,6 +32,11 @@ export type LiveCampaignRow = {
   creativeFormat?: string;
   creativeName?: string;
   thumbnailUrl?: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  primaryText?: string;
+  headline?: string;
+  callToAction?: string;
   linkUrl?: string;
   creativeFormatSource?: "meta_returned" | "not_enough_data";
 };
@@ -68,7 +73,7 @@ export async function runLiveMetaAudit(accessToken: string, accountId: string, a
     "results", "cost_per_result", "landing_page_view", "omni_landing_page_view", "offsite_conversion_fb_pixel_purchase", "omni_purchase",
     "offsite_conversion_fb_pixel_purchase_values", "omni_purchase_values", "purchase_roas", "website_purchase_roas", "daily_budget", "created_time", "start_time", "stop_time",
   ];
-  const entityFields = [...campaignFields, "campaign_id", "adset_id", "ad_id", "creative_id", "creative_name", "thumbnail_url", "link_url"];
+  const entityFields = [...campaignFields, "campaign_id", "adset_id", "ad_id", "creative_id", "creative_name", "thumbnail_url", "image_url", "video_url", "body", "title", "call_to_action_type", "link_url"];
   const [fieldContext, campaignCall, adSetCall, adCall, opportunityCall, trendCall] = await Promise.all([
     // TODO(verify-schema): Meta's public MCP reference describes this tool but does not publish its current input property name.
     safeToolCall(accessToken, "ads_get_field_context", { field_names: campaignFields }, context),
@@ -203,7 +208,7 @@ function normalizeCampaign(value: unknown): LiveCampaignRow | undefined {
     impressions: numberValue(row.impressions),
     clicks: numberValue(row.clicks),
     reach: numberValue(row.reach),
-    ctr: numberValue(row.ctr),
+    ctr: normalizeRate(numberValue(row.ctr)),
     cpc: numberValue(row.cpc),
     cpm: numberValue(row.cpm),
     frequency: numberValue(row.frequency),
@@ -219,8 +224,19 @@ function normalizeCampaign(value: unknown): LiveCampaignRow | undefined {
     stopTime: stringValue(row.stop_time),
     creativeName: stringValue(firstValue(row, ["creative_name", "creativeName"])),
     thumbnailUrl: stringValue(firstValue(row, ["thumbnail_url", "thumbnailUrl"])),
+    imageUrl: stringValue(firstValue(row, ["image_url", "imageUrl"])),
+    videoUrl: stringValue(firstValue(row, ["video_url", "videoUrl"])),
+    primaryText: stringValue(firstValue(row, ["body", "primary_text", "primaryText"])),
+    headline: stringValue(firstValue(row, ["title", "headline"])),
+    callToAction: stringValue(firstValue(row, ["call_to_action_type", "callToAction"])),
     linkUrl: stringValue(firstValue(row, ["link_url", "linkUrl"])),
   };
+}
+
+function normalizeRate(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value) || value < 0) return undefined;
+  const normalized = value > 1 ? value / 100 : value;
+  return normalized <= 1 ? normalized : undefined;
 }
 
 function findRows(value: unknown): unknown[] {
