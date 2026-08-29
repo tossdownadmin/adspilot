@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, BarChart3, BrainCircuit, CheckCircle2, ChevronLeft, Clipboard, Database, FileJson, Filter, Info, LoaderCircle, RefreshCw, Search, ShieldCheck, Sparkles, Target, TriangleAlert, Trophy, XCircle } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ArrowRight, BrainCircuit, CheckCircle2, ChevronLeft, Clipboard, Database, FileJson, Filter, Info, LoaderCircle, RefreshCw, Search, ShieldCheck, Sparkles, Target, TriangleAlert, Trophy, XCircle } from "lucide-react";
 import type { AuditResult, IntelligenceObjective, IntelligencePlaybook, Jtd, NewCampaignBrief, PerformanceTier, ReferenceSelection } from "@/lib/intelligence-domain";
 import type { LiveMetaAudit } from "@/lib/meta/live-audit";
 
@@ -21,6 +21,32 @@ export function IntelligenceLab({ account, onChooseAccount }: { account?: { id: 
   const [selected, setSelected] = useState<AuditResult>();
   const [filter, setFilter] = useState<PerformanceTier | "all">("all");
   const [dimension, setDimension] = useState<"all" | "region" | "product" | "format">("all");
+  const [prompt, setPrompt] = useState("Audit this account. Tell me what is working, what is wasting money, and what I should do next.");
+  const [agentAnswer, setAgentAnswer] = useState("");
+  const [agentError, setAgentError] = useState("");
+  const [asking, setAsking] = useState(false);
+
+  async function askAgent(event?: FormEvent) {
+    event?.preventDefault();
+    if (!account || !prompt.trim()) return;
+    setAsking(true);
+    setAgentError("");
+    setAgentAnswer("");
+    try {
+      const response = await fetch("/api/agent/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId: account.id, prompt: prompt.trim() }),
+      });
+      const body = await response.json() as { answer?: string; message?: string; error?: string };
+      if (!response.ok || !body.answer) throw new Error(body.message || body.error || "AdPilot could not answer this request.");
+      setAgentAnswer(body.answer);
+    } catch (cause) {
+      setAgentError(cause instanceof Error ? cause.message : "AdPilot could not answer this request.");
+    } finally {
+      setAsking(false);
+    }
+  }
 
   async function loadLiveIntelligence() {
     if (!account) return;
@@ -55,17 +81,29 @@ export function IntelligenceLab({ account, onChooseAccount }: { account?: { id: 
 
   if (!account) return <div className="page intelligence-page"><div className="panel empty-live-audit"><BrainCircuit size={28} /><h2>Select a live Meta account</h2><p>Intelligence does not use demo data. Choose the account whose campaigns should be scored.</p><button className="button primary" onClick={onChooseAccount}>Choose account</button></div></div>;
 
-  if (running) return <div className="page intelligence-page"><div className="live-audit-loading"><LoaderCircle className="spin" size={30} /><span className="live-data-badge">LIVE META DATA</span><h1>Building intelligence for {account.name}</h1><p>Reading campaign outcomes and applying deterministic scoring rules.</p></div></div>;
-
-  if (error) return <div className="page intelligence-page"><div className="panel live-audit-error"><TriangleAlert size={28} /><h2>Live intelligence needs attention</h2><p>{error}</p><div><button className="button primary" onClick={() => void loadLiveIntelligence()}>Try again</button><button className="button secondary" onClick={onChooseAccount}>Check account</button></div></div></div>;
-
-  return <div className="page intelligence-page">
+  return <div className="page intelligence-page simple-agent-page">
     <div className="intel-hero">
-      <div><span className="eyebrow">Campaign Intelligence · Live Meta data</span><h1>Find the patterns worth repeating.</h1><p>Score the selected account&apos;s real historical performance, then build a playbook from evidence that Meta returned.</p></div>
+      <div><span className="eyebrow">Your AI ads analyst</span><h1>What do you want to know?</h1><p>Ask in plain English. AdPilot will read this account&apos;s live Meta data and explain the answer.</p></div>
       <div className="demo-source"><span className="live-dot" /><div><strong>{account.name}</strong><small>{account.id} · {account.currency || "Currency not returned"}</small></div><button className="icon-button" aria-label="Refresh live intelligence" disabled={running} onClick={() => void loadLiveIntelligence()}>{running ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}</button></div>
     </div>
-    <div className="intel-tabs"><button className={tab === "audit" ? "active" : ""} onClick={() => setTab("audit")}><BarChart3 size={16} /> 1. Account audit</button><button className={tab === "brief" ? "active" : ""} onClick={() => setTab("brief")}><Target size={16} /> 2. Define campaign job</button><button className={tab === "playbook" ? "active" : ""} disabled={tab !== "playbook"}><BrainCircuit size={16} /> 3. Review playbook</button></div>
-    {audit?.campaigns.status === "unavailable" ? <div className="panel live-audit-error"><TriangleAlert size={24} /><h2>Campaign reporting unavailable</h2><p>{audit.campaigns.message}</p></div> : results.length === 0 ? <div className="panel empty-live-audit"><Info size={26} /><h2>Not enough data</h2><p>Meta returned no delivered campaigns for this 60-day window. No fixture data was substituted.</p></div> : tab === "audit" ? selected ? <CampaignEvidence result={selected} onBack={() => setSelected(undefined)} /> : <AuditDashboard results={results} counts={counts} filter={filter} setFilter={setFilter} dimension={dimension} setDimension={setDimension} select={setSelected} onBuild={() => setTab("brief")} currency={account.currency || "USD"} /> : <PlaybookBuilder accountId={account.id} results={results} currency={account.currency || "USD"} onBack={() => setTab("audit")} onGenerated={() => setTab("playbook")} />}
+    <form className="panel simple-agent-box" onSubmit={(event) => void askAgent(event)}>
+      <textarea aria-label="Ask AdPilot" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Example: Which campaigns are working, and what should I launch next?" />
+      <div className="simple-agent-actions">
+        <div className="quick-prompts">
+          <button type="button" onClick={() => setPrompt("Give me a simple audit: what is working, what is not, and the three actions I should take next.")}>Audit my account</button>
+          <button type="button" onClick={() => setPrompt("Find my best campaigns by region and product, then explain the pattern in simple language.")}>Find winners</button>
+          <button type="button" onClick={() => setPrompt("Build a read-only campaign playbook from my winners. Explain what to copy and what to change.")}>Build a campaign plan</button>
+        </div>
+        <button className="button primary" type="submit" disabled={asking || !prompt.trim()}>{asking ? <LoaderCircle className="spin" size={16} /> : <Sparkles size={16} />} {asking ? "Reading Meta data…" : "Ask AdPilot"}</button>
+      </div>
+    </form>
+    {agentError && <div className="panel live-audit-error simple-agent-result"><TriangleAlert size={20} /><div><strong>AdPilot needs attention</strong><p>{agentError}</p></div></div>}
+    {agentAnswer && <section className="panel simple-agent-result"><span className="eyebrow">AdPilot&apos;s answer</span><div className="agent-answer-copy">{agentAnswer}</div></section>}
+    {running ? <div className="panel simple-snapshot"><LoaderCircle className="spin" size={20} /><div><strong>Refreshing account snapshot…</strong><p>You can already ask AdPilot a question above.</p></div></div> : error ? <div className="panel live-audit-error"><TriangleAlert size={20} /><div><strong>Account snapshot unavailable</strong><p>{error}</p><button className="text-button" onClick={() => void loadLiveIntelligence()}>Try again</button></div></div> : audit?.campaigns.status === "unavailable" ? <div className="panel live-audit-error"><TriangleAlert size={24} /><h2>Campaign reporting unavailable</h2><p>{audit.campaigns.message}</p></div> : results.length === 0 ? <div className="panel empty-live-audit"><Info size={26} /><h2>Not enough data</h2><p>Meta returned no delivered campaigns for this 60-day window.</p></div> : selected ? <CampaignEvidence result={selected} onBack={() => setSelected(undefined)} /> : <>
+      <div className="simple-snapshot panel"><div><span className="eyebrow">Live account snapshot</span><h2>{results.length} campaigns analyzed</h2><p>{counts.winner ?? 0} winners · {counts.contender ?? 0} contenders · {counts.underperformer ?? 0} underperformers</p></div><button className="text-button" onClick={onChooseAccount}>Change account <ArrowRight size={14} /></button></div>
+      <details className="advanced-results"><summary>See detailed campaign evidence</summary><AuditDashboard results={results} counts={counts} filter={filter} setFilter={setFilter} dimension={dimension} setDimension={setDimension} select={setSelected} onBuild={() => setTab("brief")} currency={account.currency || "USD"} /></details>
+      {tab === "brief" && <PlaybookBuilder accountId={account.id} results={results} currency={account.currency || "USD"} onBack={() => setTab("audit")} onGenerated={() => setTab("playbook")} />}
+    </>}
   </div>;
 }
 

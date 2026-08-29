@@ -45,13 +45,8 @@ type View = "overview" | "live-audit" | "intelligence" | "create" | "campaigns" 
 type CreateStep = "brief" | "generating" | "review" | "success";
 
 const navItems: { view: View; label: string; icon: typeof LayoutDashboard }[] = [
-  { view: "overview", label: "Overview", icon: LayoutDashboard },
-  { view: "connections", label: "Meta connection", icon: Link2 },
-  { view: "live-audit", label: "Live audit", icon: BarChart3 },
-  { view: "intelligence", label: "Live intelligence", icon: BrainCircuit },
-  { view: "campaigns", label: "Live campaigns", icon: Megaphone },
-  { view: "policies", label: "Policies", icon: ShieldCheck },
-  { view: "audit", label: "Audit log", icon: History },
+  { view: "overview", label: "Ask AdPilot", icon: Bot },
+  { view: "connections", label: "Change Meta account", icon: Link2 },
 ];
 
 const emptyBrief = (workspace: Workspace): CampaignBrief => ({
@@ -97,14 +92,10 @@ export function AdPilotApp() {
     setState((current) => updater(current));
   }
 
-  function openProposal() {
-    setView("campaigns");
-  }
-
   function openLiveAudit(account: MetaAccountSummary) {
     setLiveAuditAccount(account);
     window.localStorage.setItem("adpilot-meta-account", JSON.stringify(account));
-    setView("live-audit");
+    setView("overview");
   }
 
   if (!ready) return <div className="boot"><LoaderCircle className="spin" /> Loading control center…</div>;
@@ -146,14 +137,11 @@ export function AdPilotApp() {
         </header>
 
         <main>
-          {view === "overview" && <Overview account={liveAuditAccount} setView={setView} />}
-          {view === "live-audit" && <LiveAuditView account={liveAuditAccount} onChooseAccount={() => setView("connections")} onNavigate={setView} />}
-          {view === "intelligence" && <IntelligenceLab account={liveAuditAccount} onChooseAccount={() => setView("connections")} />}
-          {view === "create" && <CreateCampaign state={state} updateState={updateState} setView={setView} openProposal={openProposal} />}
-          {view === "campaigns" && <LiveCampaignsView account={liveAuditAccount} onChooseAccount={() => setView("connections")} />}
-          {view === "connections" && <Connections state={state} updateState={updateState} onRunAudit={openLiveAudit} />}
-          {view === "policies" && <Policies state={state} updateState={updateState} />}
-          {view === "audit" && <AuditLog events={state.auditEvents} />}
+          {view === "connections"
+            ? <Connections state={state} updateState={updateState} onRunAudit={openLiveAudit} />
+            : liveAuditAccount
+              ? <IntelligenceLab account={liveAuditAccount} onChooseAccount={() => setView("connections")} />
+              : <Overview account={liveAuditAccount} setView={setView} />}
         </main>
       </div>
     </div>
@@ -356,6 +344,8 @@ function Connections({ state, updateState, onRunAudit }: { state: AppState; upda
   </div>;
 }
 
+// Legacy detailed screen retained internally while the simplified flow is evaluated.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function LiveAuditView({ account, onChooseAccount, onNavigate }: { account?: MetaAccountSummary; onChooseAccount: () => void; onNavigate: (view: View) => void }) {
   const [audit, setAudit] = useState<LiveMetaAudit>();
   const [running, setRunning] = useState(false);
@@ -437,6 +427,7 @@ function LiveAuditView({ account, onChooseAccount, onNavigate }: { account?: Met
   </div>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function LiveCampaignsView({ account, onChooseAccount }: { account?: MetaAccountSummary; onChooseAccount: () => void }) {
   const [audit, setAudit] = useState<LiveMetaAudit>();
   const [running, setRunning] = useState(false);
@@ -614,6 +605,7 @@ async function requestProposal(action: "generate" | "validate", brief: CampaignB
   return body;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function Policies({ state, updateState }: { state: AppState; updateState: (fn: (s: AppState) => AppState) => void }) {
   const [limit, setLimit] = useState(state.workspace.maxDailyBudget);
   const [saved, setSaved] = useState(false);
@@ -638,6 +630,7 @@ function Rule({ label, detail, value }: { label: string; detail: string; value?:
   return <div className="rule"><span className="rule-check"><Check size={14} /></span><div><strong>{label}</strong><p>{detail}</p></div>{value ? <code>{value}</code> : <span className="toggle-on"><span /></span>}</div>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CreateCampaign({ state, updateState, setView, openProposal }: { state: AppState; updateState: (fn: (s: AppState) => AppState) => void; setView: (v: View) => void; openProposal: (id: string) => void }) {
   const [step, setStep] = useState<CreateStep>("brief");
   const [brief, setBrief] = useState<CampaignBrief>(() => emptyBrief(state.workspace));
@@ -769,6 +762,7 @@ function FindingRow({ finding }: { finding: Finding }) {
   return <div className={`finding ${finding.severity}`}><Icon size={16} /><div><strong>{finding.title}</strong><p>{finding.message}</p></div></div>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function AuditLog({ events }: { events: AppState["auditEvents"] }) {
   return <div className="page narrow-page"><PageHeading eyebrow="Trust & control" title="Audit log" description="An append-only history of agent, user, policy, and execution events." /><section className="panel audit-panel">{events.length ? <EventList events={events} /> : <div className="empty-small"><History size={24} /><h3>No events yet</h3><p>Workspace changes and campaign actions will appear here.</p></div>}</section></div>;
 }
