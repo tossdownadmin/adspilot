@@ -366,7 +366,7 @@ function buildPresentation(results: AuditResult[], audit?: LiveMetaAudit): Agent
     ],
     leaders,
     attention: diagnosis.wasteCandidates.slice(0, 5).map(({ name, spend, reason }) => ({ name, spend, reason })),
-    creatives: audit?.ads.status === "ok" ? audit.ads.data.slice().sort((left, right) => (right.spend ?? 0) - (left.spend ?? 0)).slice(0, 5).map((ad) => ({ id: ad.id, name: ad.creativeName || ad.name, spend: ad.spend ?? 0, conversions: ad.purchases ?? ad.results ?? 0, ctr: ad.ctr ?? null, thumbnailUrl: ad.thumbnailUrl, campaignId: ad.campaignId })) : [],
+    creatives: audit?.ads.status === "ok" ? audit.ads.data.slice().sort((left, right) => (right.spend ?? 0) - (left.spend ?? 0)).slice(0, 5).map((ad) => ({ id: ad.id, name: ad.creativeName || ad.name, spend: ad.spend ?? 0, conversions: ad.purchases ?? ad.results ?? 0, ctr: ad.impressions && ad.impressions > 0 && ad.clicks !== undefined ? ad.clicks / ad.impressions : ad.ctr ?? null, thumbnailUrl: ad.thumbnailUrl, campaignId: ad.campaignId })) : [],
   };
 }
 
