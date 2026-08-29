@@ -6,6 +6,8 @@ export type LiveAuditSection<T> =
 
 export type LiveCampaignRow = {
   id: string;
+  campaignId?: string;
+  adSetId?: string;
   name: string;
   objective?: string;
   status?: string;
@@ -28,6 +30,9 @@ export type LiveCampaignRow = {
   startTime?: string;
   stopTime?: string;
   creativeFormat?: string;
+  creativeName?: string;
+  thumbnailUrl?: string;
+  linkUrl?: string;
   creativeFormatSource?: "meta_returned" | "not_enough_data";
 };
 
@@ -39,6 +44,8 @@ export type LiveMetaAudit = {
   retrievedAt: string;
   window: { since: string; until: string; days: 60 };
   campaigns: LiveAuditSection<LiveCampaignRow[]>;
+  adSets: LiveAuditSection<LiveCampaignRow[]>;
+  ads: LiveAuditSection<LiveCampaignRow[]>;
   opportunity: LiveAuditSection<{ score?: number; recommendations: unknown[] }>;
   errors: LiveAuditSection<{ count: number; items: unknown[] }>;
   trend: LiveAuditSection<unknown>;
@@ -61,7 +68,8 @@ export async function runLiveMetaAudit(accessToken: string, accountId: string, a
     "results", "cost_per_result", "landing_page_view", "omni_landing_page_view", "offsite_conversion_fb_pixel_purchase", "omni_purchase",
     "offsite_conversion_fb_pixel_purchase_values", "omni_purchase_values", "purchase_roas", "website_purchase_roas", "daily_budget", "created_time", "start_time", "stop_time",
   ];
-  const [fieldContext, campaignCall, opportunityCall, trendCall] = await Promise.all([
+  const entityFields = [...campaignFields, "campaign_id", "adset_id", "ad_id", "creative_id", "creative_name", "thumbnail_url", "link_url"];
+  const [fieldContext, campaignCall, adSetCall, adCall, opportunityCall, trendCall] = await Promise.all([
     // TODO(verify-schema): Meta's public MCP reference describes this tool but does not publish its current input property name.
     safeToolCall(accessToken, "ads_get_field_context", { field_names: campaignFields }, context),
     safeToolCall(accessToken, "ads_get_ad_entities", {
@@ -72,6 +80,12 @@ export async function runLiveMetaAudit(accessToken: string, accountId: string, a
       time_increment: "all_days",
       sort: "amount_spent_descending",
       limit: 1000,
+    }, context),
+    safeToolCall(accessToken, "ads_get_ad_entities", {
+      ad_account_id: accountId, level: "adset", fields: entityFields, time_range: JSON.stringify({ since, until }), time_increment: "all_days", sort: "amount_spent_descending", limit: 1000,
+    }, context),
+    safeToolCall(accessToken, "ads_get_ad_entities", {
+      ad_account_id: accountId, level: "ad", fields: entityFields, time_range: JSON.stringify({ since, until }), time_increment: "all_days", sort: "amount_spent_descending", limit: 1000,
     }, context),
     safeToolCall(accessToken, "ads_get_opportunity_score", { ad_account_id: accountId }, context),
     safeToolCall(accessToken, "ads_insights_performance_trend", { ad_account_id: accountId }, context),
@@ -90,6 +104,8 @@ export async function runLiveMetaAudit(accessToken: string, accountId: string, a
     retrievedAt: new Date().toISOString(),
     window: { since, until, days: 60 },
     campaigns,
+    adSets: normalizeCampaignSection(adSetCall),
+    ads: normalizeCampaignSection(adCall),
     opportunity: normalizeOpportunitySection(opportunityCall),
     errors: normalizeErrorsSection(errorsCall),
     trend: trendCall.status === "ok"
@@ -177,6 +193,8 @@ function normalizeCampaign(value: unknown): LiveCampaignRow | undefined {
   const id = String(rawId);
   return {
     id,
+    campaignId: stringValue(firstValue(row, ["campaign_id", "campaignId"])),
+    adSetId: stringValue(firstValue(row, ["adset_id", "ad_set_id", "adSetId"])),
     name: stringValue(firstValue(row, ["name", "campaign_name"])) || `Campaign ${id}`,
     objective: stringValue(firstValue(row, ["objective", "campaign_objective"])),
     status: stringValue(firstValue(row, ["status", "effective_status"])),
@@ -198,6 +216,9 @@ function normalizeCampaign(value: unknown): LiveCampaignRow | undefined {
     createdTime: stringValue(row.created_time),
     startTime: stringValue(row.start_time),
     stopTime: stringValue(row.stop_time),
+    creativeName: stringValue(firstValue(row, ["creative_name", "creativeName"])),
+    thumbnailUrl: stringValue(firstValue(row, ["thumbnail_url", "thumbnailUrl"])),
+    linkUrl: stringValue(firstValue(row, ["link_url", "linkUrl"])),
   };
 }
 
