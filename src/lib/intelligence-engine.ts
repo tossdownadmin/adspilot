@@ -83,6 +83,8 @@ export function buildAccountDiagnosis(results: AuditResult[]): AccountDiagnosis 
   const concentrationCount = brain.scoring.diagnosis.concentrationCampaignCount;
   const topSpend = [...results].sort((left, right) => right.campaign.spend - left.campaign.spend).slice(0, concentrationCount).reduce((sum, result) => sum + result.campaign.spend, 0);
   const topSpendShare = totalSpend > 0 ? round(topSpend / totalSpend) : 0;
+  const knownJtdCampaigns = results.filter((result) => result.campaign.jtd !== "unknown").length;
+  const knownJtdShare = results.length ? round(knownJtdCampaigns / results.length) : 0;
   const bestByObjective: AccountDiagnosis["bestByObjective"] = {};
   for (const objective of ["sales", "leads", "traffic", "awareness"] as IntelligenceObjective[]) {
     const ranked = significant.filter((result) => result.campaign.objective === objective).sort((left, right) => (right.score ?? 0) - (left.score ?? 0));
@@ -102,7 +104,7 @@ export function buildAccountDiagnosis(results: AuditResult[]): AccountDiagnosis 
     product: rankDiagnosisDimension(significant, "product"),
     jtd: rankDiagnosisDimension(significant, "jtd"),
   };
-  return { summary: { campaigns: results.length, significantCampaigns: significant.length, totalSpend: round(totalSpend, 2), scoredSpend: round(scoredSpend, 2), topSpendShare, spendConcentrated: topSpendShare >= brain.scoring.diagnosis.highConcentrationShare }, bestByObjective, wasteCandidates, dimensionLeaders };
+  return { summary: { campaigns: results.length, significantCampaigns: significant.length, totalSpend: round(totalSpend, 2), scoredSpend: round(scoredSpend, 2), topSpendShare, spendConcentrated: topSpendShare >= brain.scoring.diagnosis.highConcentrationShare, knownJtdCampaigns, knownJtdShare }, bestByObjective, wasteCandidates, dimensionLeaders };
 }
 
 function rankDiagnosisDimension(results: AuditResult[], key: "region" | "product" | "jtd") {

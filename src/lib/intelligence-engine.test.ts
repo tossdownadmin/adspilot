@@ -49,6 +49,8 @@ describe("campaign intelligence audit", () => {
   it("produces an objective-aware account diagnosis", () => {
     const diagnosis = buildAccountDiagnosis(results);
     expect(diagnosis.summary.campaigns).toBe(results.length);
+    expect(diagnosis.summary.knownJtdCampaigns).toBeGreaterThan(0);
+    expect(diagnosis.summary.knownJtdShare).toBeGreaterThan(0);
     expect(diagnosis.bestByObjective.sales?.[0].winningMetric).toBeTruthy();
     expect(diagnosis.wasteCandidates.every((campaign) => campaign.tier === "underperformer" || campaign.tier === "kill_candidate")).toBe(true);
     expect(diagnosis.dimensionLeaders.region.length).toBeGreaterThan(0);

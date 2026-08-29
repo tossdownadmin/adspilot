@@ -67,7 +67,7 @@ export type AuditResult = {
 };
 
 export type AccountDiagnosis = {
-  summary: { campaigns: number; significantCampaigns: number; totalSpend: number; scoredSpend: number; topSpendShare: number; spendConcentrated: boolean };
+  summary: { campaigns: number; significantCampaigns: number; totalSpend: number; scoredSpend: number; topSpendShare: number; spendConcentrated: boolean; knownJtdCampaigns: number; knownJtdShare: number };
   bestByObjective: Partial<Record<IntelligenceObjective, Array<{ campaignId: string; name: string; tier: PerformanceTier; score: number; spend: number; winningMetric: string; winningMetricValue: number | null }>>>;
   wasteCandidates: Array<{ campaignId: string; name: string; tier: PerformanceTier; spend: number; reason: string }>;
   dimensionLeaders: Record<"region" | "product" | "jtd", Array<{ value: string; campaigns: number; spend: number; averageScore: number; winners: number }>>;

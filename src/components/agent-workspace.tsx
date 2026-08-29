@@ -2,13 +2,15 @@
 
 import { FormEvent, useState } from "react";
 import { ArrowRight, Bot, LoaderCircle, Send, Sparkles, TriangleAlert } from "lucide-react";
+import { AgentReport, AgentResponse } from "./agent-response";
+import type { AgentPresentation } from "@/lib/agent/adpilot-agent";
 
-type Message = { role: "user" | "assistant"; content: string; tools?: string[] };
+type Message = { role: "user" | "assistant"; content: string; tools?: string[]; presentation?: AgentPresentation };
 
 const suggestions = [
   "Audit this account and tell me the three most important things to do next.",
   "Which campaigns are actually working for their own objectives?",
-  "Find the best patterns by region, product, and campaign job.",
+  "Compare performance patterns by objective, region, and product.",
   "Build a campaign playbook from the strongest relevant winners.",
 ];
 
@@ -34,10 +36,10 @@ export function AgentWorkspace({ account, onChooseAccount }: { account: { id: st
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accountId: account.id, prompt: request, history, conversationId }),
       });
-      const body = await response.json() as { answer?: string; message?: string; error?: string; toolTrace?: Array<{ tool: string; status: "ok" | "error" }> };
+      const body = await response.json() as { answer?: string; message?: string; error?: string; toolTrace?: Array<{ tool: string; status: "ok" | "error" }>; presentation?: AgentPresentation };
       if (!response.ok || !body.answer) throw new Error(body.message || body.error || "AdPilot could not complete that request.");
       const tools = [...new Set((body.toolTrace ?? []).filter((item) => item.status === "ok").map((item) => item.tool))];
-      setMessages((current) => [...current, { role: "assistant", content: body.answer!, tools }]);
+      setMessages((current) => [...current, { role: "assistant", content: body.answer!, tools, presentation: body.presentation }]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "AdPilot could not complete that request.");
     } finally {
@@ -53,7 +55,7 @@ export function AgentWorkspace({ account, onChooseAccount }: { account: { id: st
 
     <section className="agent-chat panel">
       <div className="agent-thread">
-        {messages.length === 0 ? <div className="agent-welcome"><div className="agent-welcome-icon"><Sparkles size={24} /></div><h2>What would you like AdPilot to do?</h2><p>Start with an audit, ask about a campaign, compare regions, or request a campaign plan.</p><div className="agent-suggestions">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => setPrompt(suggestion)}>{suggestion}<ArrowRight size={13} /></button>)}</div></div> : messages.map((message, index) => <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}><div>{message.role === "assistant" ? <Bot size={17} /> : "You"}</div><section><p>{message.content}</p>{message.tools?.length ? <details className="agent-tools-used"><summary>{message.tools.length} live tools used</summary><span>{message.tools.join(" · ")}</span></details> : null}</section></article>)}
+        {messages.length === 0 ? <div className="agent-welcome"><div className="agent-welcome-icon"><Sparkles size={24} /></div><h2>What would you like AdPilot to do?</h2><p>Start with an audit, ask about a campaign, compare regions, or request a campaign plan.</p><div className="agent-suggestions">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => setPrompt(suggestion)}>{suggestion}<ArrowRight size={13} /></button>)}</div></div> : messages.map((message, index) => <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}><div>{message.role === "assistant" ? <Bot size={17} /> : "You"}</div><section>{message.presentation ? <AgentReport report={message.presentation} /> : null}{message.role === "assistant" ? <AgentResponse content={message.content} /> : <p>{message.content}</p>}{message.tools?.length ? <details className="agent-tools-used"><summary>{message.tools.length} live tools used</summary><span>{message.tools.join(" · ")}</span></details> : null}</section></article>)}
         {asking && <article className="chat-message assistant"><div><Bot size={17} /></div><p className="agent-thinking"><LoaderCircle className="spin" size={15} /> Reading live Meta data and choosing tools…</p></article>}
       </div>
       {error && <div className="agent-inline-error"><TriangleAlert size={16} /><span>{error}</span></div>}

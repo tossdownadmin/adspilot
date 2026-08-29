@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { loadBrain } from "../brain/load-brain";
-import { auditCampaigns, buildAccountDiagnosis, buildIntelligencePlaybook, jtdLabel } from "../intelligence-engine";
+import { auditCampaigns, buildAccountDiagnosis, buildIntelligencePlaybook } from "../intelligence-engine";
 import type { AuditResult } from "../intelligence-domain";
 import { runLiveMetaAudit, type LiveMetaAudit } from "../meta/live-audit";
 import { liveCampaignsToHistory } from "../meta/live-intelligence";
@@ -24,6 +24,13 @@ export type AgentRun = {
   answer: string;
   toolTrace: AgentToolTrace[];
   evidence: { auditId?: string; window?: LiveMetaAudit["window"]; campaignIds: string[] };
+  presentation?: AgentPresentation;
+};
+
+export type AgentPresentation = {
+  metrics: Array<{ label: string; value: string; detail: string }>;
+  leaders: Array<{ name: string; objective: string; score: number; spend: number }>;
+  attention: Array<{ name: string; spend: number; reason: string }>;
 };
 
 type ResponseItem = { type?: string; name?: string; call_id?: string; arguments?: string; content?: Array<{ type?: string; text?: string }> };
@@ -36,7 +43,7 @@ const internalTools = [
     properties: { rankBy: { type: "string", enum: ["spend", "evidence"] }, limit: { type: "integer", minimum: 1, maximum: 10 } },
     required: ["rankBy", "limit"], additionalProperties: false,
   }),
-  functionTool("get_account_diagnosis", "Return the deterministic account diagnosis: objective-specific leaders, highest-spend waste candidates, spend concentration, and leaders by region, product, and job-to-be-done.", { type: "object", properties: {}, required: [], additionalProperties: false }),
+  functionTool("get_account_diagnosis", "Return the deterministic account diagnosis: objective-specific leaders, highest-spend waste candidates, spend concentration, and reliable location/product patterns. Historical job-to-be-done is name-inferred rather than native Meta data; use its coverage field before mentioning it.", { type: "object", properties: {}, required: [], additionalProperties: false }),
   functionTool("get_campaign_evidence", "Return deterministic scoring evidence and live metrics for a campaign ID returned by another tool.", {
     type: "object", properties: { campaignId: { type: "string" } }, required: ["campaignId"], additionalProperties: false,
   }),
@@ -98,7 +105,10 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
     "You may explain the AdPilot brain but must never override any scored value, tier, gate, or budget.",
     "Creative formats are factual only when their source is Meta returned; otherwise say Not enough data.",
     "Do not claim causality. Finish with a concise next action. Campaign execution is unavailable.",
-    "For an account audit, use get_account_diagnosis after get_live_account_audit. Lead with a short TL;DR, then What is working, What needs attention, Patterns by region/product/JTD, and Next three actions.",
+    "For an account audit, use get_account_diagnosis after get_live_account_audit. Lead with a short TL;DR, then What is working, What needs attention, reliable patterns by objective/region/product, and Next three actions.",
+    "Meta does not provide a native historical job-to-be-done (JTD). Do not treat unknown historical JTD as a data problem, do not ask the user to tag old campaigns, and do not include a JTD audit section unless knownJtdShare is at least 0.6 and the user asked for it.",
+    "JTD is a brief input for a NEW campaign. When the user asks to build a campaign or playbook and the intended job is unclear, ask one concise follow-up question before calling build_campaign_playbook; never use unknown as a shortcut.",
+    "Write polished Markdown for business users: concise headings, bullets, and comparison tables where useful. Escape vertical bars inside campaign names as \\|. Avoid internal implementation terms such as cohortKey, deterministic tier, or evidence package unless the user asks.",
     "Never call a highest-spend campaign a winner unless its deterministic tier is winner. Clearly distinguish spend leaders from performance leaders.",
     brainProse,
   ].join("\n\n");
@@ -121,6 +131,7 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
         runId, source: "ADPILOT_AGENT_V1", accountId: input.accountId,
         answer: response.output_text || outputText(response) || "The model returned no answer.", toolTrace: trace,
         evidence: { auditId: audit?.auditId, window: audit?.window, campaignIds: results.map((result) => result.campaign.campaignId) },
+        presentation: buildPresentation(results),
       };
     }
 
@@ -161,6 +172,7 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
         answer: finalResponse.output_text || outputText(finalResponse) || "The analysis completed, but the model returned no written answer.",
         toolTrace: trace,
         evidence: { auditId: audit?.auditId, window: audit?.window, campaignIds: results.map((result) => result.campaign.campaignId) },
+        presentation: buildPresentation(results),
       };
     }
 
@@ -194,7 +206,7 @@ async function executeTool(tool: string, args: Record<string, unknown>, state: T
     return { audit, results, value: auditSummary(audit, results) };
   }
   if (!state.audit) throw new AgentRuntimeError("Run get_live_account_audit before using other account tools.");
-  if (tool === "get_account_diagnosis") return { value: buildAccountDiagnosis(state.results) };
+  if (tool === "get_account_diagnosis") return { value: accountDiagnosisForAgent(state.results) };
   if (tool === "get_top_campaigns") return { value: topCampaigns(state.results, args) };
   if (tool === "get_campaign_evidence") return { value: campaignEvidence(state.results, args) };
   if (tool === "get_dimension_patterns") return { value: dimensionPatterns(state.results, args) };
@@ -256,12 +268,45 @@ function campaignPlaybook(results: AuditResult[], args: Record<string, unknown>)
 
 function compactCampaign(result: AuditResult) {
   return {
-    campaignId: result.campaign.campaignId, name: result.campaign.name, objective: result.campaign.objective, jtd: jtdLabel(result.campaign.jtd),
+    campaignId: result.campaign.campaignId, name: result.campaign.name, objective: result.campaign.objective,
     spend: result.campaign.spend, conversions: result.campaign.conversions, roas: result.metrics.roas, cpa: result.metrics.cpa,
     ctr: result.metrics.ctr, region: result.campaign.region, regionSource: result.campaign.regionSource || "not_enough_data",
     product: result.campaign.product, productSource: result.campaign.productSource || "not_enough_data",
     creativeFormat: result.campaign.creativeFormat || "Not enough data", creativeFormatSource: result.campaign.creativeFormatSource || "not_enough_data",
     tier: result.tier, eligibleReference: result.eligibleReference,
+  };
+}
+
+function accountDiagnosisForAgent(results: AuditResult[]) {
+  const diagnosis = buildAccountDiagnosis(results);
+  const reliableJtd = diagnosis.summary.knownJtdShare >= 0.6;
+  return {
+    ...diagnosis,
+    dimensionLeaders: reliableJtd ? diagnosis.dimensionLeaders : { region: diagnosis.dimensionLeaders.region, product: diagnosis.dimensionLeaders.product },
+    historicalJtd: reliableJtd
+      ? { available: true, note: "Name-inferred historical signal; not a native Meta field." }
+      : { available: false, note: "Omitted because historical name-inference coverage is too low. JTD will be requested when drafting a new campaign." },
+  };
+}
+
+function buildPresentation(results: AuditResult[]): AgentPresentation | undefined {
+  if (!results.length) return undefined;
+  const diagnosis = buildAccountDiagnosis(results);
+  const leaders = Object.entries(diagnosis.bestByObjective)
+    .flatMap(([objective, campaigns]) => (campaigns ?? []).map((campaign) => ({ name: campaign.name, objective, score: campaign.score, spend: campaign.spend })))
+    .sort((left, right) => right.score - left.score)
+    .slice(0, 5);
+  const percent = (value: number) => `${Math.round(value * 100)}%`;
+  const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
+  return {
+    metrics: [
+      { label: "Campaigns analyzed", value: String(diagnosis.summary.campaigns), detail: "Live 60-day account window" },
+      { label: "Enough evidence", value: String(diagnosis.summary.significantCampaigns), detail: "Comparable against their objective" },
+      { label: "Spend analyzed", value: money(diagnosis.summary.totalSpend), detail: "Across returned campaigns" },
+      { label: "Top-spend share", value: percent(diagnosis.summary.topSpendShare), detail: diagnosis.summary.spendConcentrated ? "Spend is concentrated" : "Spend is distributed" },
+    ],
+    leaders,
+    attention: diagnosis.wasteCandidates.slice(0, 5).map(({ name, spend, reason }) => ({ name, spend, reason })),
   };
 }
 
