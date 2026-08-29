@@ -39,7 +39,7 @@ import type { LiveMetaAudit } from "@/lib/meta/live-audit";
 import { CampaignBriefSchema } from "@/lib/domain";
 import { approveProposal, audit, executeProposal } from "@/lib/proposal-state";
 import { defaultState, readState, writeState } from "@/lib/storage";
-import { IntelligenceLab } from "@/components/intelligence-lab";
+import { AgentWorkspace } from "@/components/agent-workspace";
 
 type View = "overview" | "live-audit" | "intelligence" | "create" | "campaigns" | "connections" | "policies" | "audit";
 type CreateStep = "brief" | "generating" | "review" | "success";
@@ -140,7 +140,7 @@ export function AdPilotApp() {
           {view === "connections"
             ? <Connections state={state} updateState={updateState} onRunAudit={openLiveAudit} />
             : liveAuditAccount
-              ? <IntelligenceLab account={liveAuditAccount} onChooseAccount={() => setView("connections")} />
+              ? <AgentWorkspace account={liveAuditAccount} onChooseAccount={() => setView("connections")} />
               : <Overview account={liveAuditAccount} setView={setView} />}
         </main>
       </div>

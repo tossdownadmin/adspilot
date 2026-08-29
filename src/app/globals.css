@@ -767,3 +767,34 @@ main { min-height: calc(100vh - 62px); }
 .diagnosis-card small, .diagnosis-card p { color: var(--muted); font-size: 10px; line-height: 1.45; }
 @media (max-width: 760px) { .simple-agent-actions, .simple-snapshot { align-items: stretch; flex-direction: column; } .simple-agent-actions .button { width: 100%; } }
 @media (max-width: 900px) { .diagnosis-grid { grid-template-columns: 1fr; } }
+
+.agent-workspace { width: min(100% - 72px, 980px); }
+.agent-workspace-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; margin-bottom: 24px; }
+.agent-workspace-head h1 { margin: 7px 0 8px; font-size: clamp(32px, 5vw, 54px); line-height: 1.02; letter-spacing: -.04em; }
+.agent-workspace-head p { max-width: 650px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.agent-account-pill { display: flex; align-items: center; gap: 10px; flex: none; min-width: 235px; padding: 13px 15px; text-align: left; background: white; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+.agent-account-pill > span:nth-child(2) { display: grid; flex: 1; }
+.agent-account-pill strong { color: var(--ink); font-size: 11px; }
+.agent-account-pill small { margin-top: 2px; color: var(--muted); font-size: 8px; }
+.agent-chat { min-height: 610px; padding: 0; overflow: hidden; }
+.agent-thread { min-height: 455px; max-height: calc(100vh - 370px); padding: 28px; overflow-y: auto; }
+.agent-welcome { display: grid; place-items: center; max-width: 680px; margin: 42px auto; text-align: center; }
+.agent-welcome-icon { display: grid; place-items: center; width: 52px; height: 52px; color: var(--green); background: var(--green-soft); border-radius: 16px; }
+.agent-welcome h2 { margin: 16px 0 6px; font-size: 23px; }
+.agent-welcome > p { margin: 0; color: var(--muted); font-size: 12px; }
+.agent-suggestions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; width: 100%; margin-top: 25px; }
+.agent-suggestions button { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 15px; color: #29473b; text-align: left; background: #f6faf8; border: 1px solid #dce7e1; border-radius: 10px; cursor: pointer; font: inherit; font-size: 11px; line-height: 1.35; }
+.agent-suggestions button:hover { border-color: #76a38f; background: #eef7f2; }
+.chat-message { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 12px; max-width: 820px; margin: 0 auto 20px; }
+.chat-message > div { display: grid; place-items: center; width: 36px; height: 36px; color: var(--green); background: var(--green-soft); border-radius: 10px; font-size: 9px; font-weight: 800; }
+.chat-message.user > div { color: white; background: #52635b; }
+.chat-message p { margin: 0; padding: 9px 0; color: #25332d; white-space: pre-wrap; font-size: 13px; line-height: 1.65; }
+.agent-thinking { display: flex; align-items: center; gap: 8px; color: var(--muted) !important; }
+.agent-inline-error { display: flex; align-items: center; gap: 8px; margin: 0 22px 10px; padding: 10px 12px; color: #963f38; background: #fff2f0; border-radius: 8px; font-size: 10px; }
+.agent-composer { display: grid; grid-template-columns: minmax(0, 1fr) 46px; gap: 10px; margin: 0 20px; padding: 10px; background: white; border: 1px solid #cddbd4; border-radius: 14px; box-shadow: 0 8px 30px rgba(22,54,42,.08); }
+.agent-composer:focus-within { border-color: #61947d; box-shadow: 0 0 0 4px rgba(28,107,80,.08); }
+.agent-composer textarea { min-height: 56px; max-height: 160px; padding: 9px; resize: none; color: var(--ink); background: transparent; border: 0; outline: 0; font: inherit; font-size: 13px; line-height: 1.5; }
+.agent-composer button { align-self: end; display: grid; place-items: center; width: 42px; height: 42px; color: white; background: var(--green); border: 0; border-radius: 11px; cursor: pointer; }
+.agent-composer button:disabled { cursor: not-allowed; opacity: .45; }
+.agent-safety-note { margin: 9px 24px 15px; color: var(--muted); text-align: center; font-size: 8px; }
+@media (max-width: 800px) { .agent-workspace { width: min(100% - 28px, 980px); } .agent-workspace-head { align-items: stretch; flex-direction: column; } .agent-account-pill { width: 100%; } .agent-suggestions { grid-template-columns: 1fr; } .agent-thread { max-height: none; } }

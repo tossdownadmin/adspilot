@@ -9,6 +9,7 @@ const AgentInputSchema = z.object({
   accountId: z.string().regex(/^\d{5,30}$/, "Select a valid Meta ad account."),
   prompt: z.string().trim().min(3, "Enter a request of at least 3 characters.").max(8_000, "Keep the request under 8,000 characters."),
   conversationId: z.string().trim().min(1).max(128).optional(),
+  history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(12_000) })).max(20).optional(),
 });
 
 export type AgentRunInput = z.infer<typeof AgentInputSchema>;
@@ -87,7 +88,7 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
     brainProse,
   ].join("\n\n");
 
-  const conversation: unknown[] = [{ role: "user", content: input.prompt }];
+  const conversation: unknown[] = [...(input.history ?? []), { role: "user", content: input.prompt }];
   let response = await createResponse(config.apiKey, {
     model: config.model,
     store: false,
