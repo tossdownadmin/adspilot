@@ -274,7 +274,12 @@ function creativeBreakdown(audit: LiveMetaAudit, args: Record<string, unknown>) 
     status: "ok",
     items: section.data.slice().sort((left, right) => (right.spend ?? 0) - (left.spend ?? 0)).slice(0, limit).map((item) => ({
       id: item.id, name: item.name, objective: item.objective || "Not returned", spend: item.spend ?? 0,
-      impressions: item.impressions ?? 0, reach: item.reach ?? 0, clicks: item.clicks ?? 0, ctr: item.ctr === undefined ? null : item.ctr > 1 ? item.ctr / 100 : item.ctr,
+      impressions: item.impressions ?? 0, reach: item.reach ?? 0, clicks: item.clicks ?? 0,
+      // Meta has returned CTR in both ratio and percent units across endpoints;
+      // derive it from the primitive counts whenever available.
+      ctr: item.impressions && item.impressions > 0 && item.clicks !== undefined
+        ? item.clicks / item.impressions
+        : item.ctr === undefined ? null : item.ctr > 1 ? item.ctr / 100 : item.ctr,
       cpc: item.cpc ?? null, cpm: item.cpm ?? null, frequency: item.frequency ?? null, conversions: item.purchases ?? item.results ?? 0,
       costPerResult: item.costPerResult ?? null, creativeFormat: item.creativeFormat ?? "Not enough data",
       campaignId: item.campaignId ?? null, adSetId: item.adSetId ?? null, creativeName: item.creativeName ?? null,
