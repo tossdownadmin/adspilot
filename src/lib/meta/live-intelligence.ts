@@ -22,6 +22,7 @@ function toHistoricalCampaign(campaign: LiveCampaignRow, window: { since: string
   return {
     campaignId: campaign.id,
     name: campaign.name,
+    deliveryStatus: campaign.status,
     region: region.value,
     product: product.value,
     objective,

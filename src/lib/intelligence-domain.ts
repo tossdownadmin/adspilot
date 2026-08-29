@@ -6,6 +6,7 @@ export type DimensionSource = "meta_returned" | "inferred_from_campaign_name" | 
 export type HistoricalCampaign = {
   campaignId: string;
   name: string;
+  deliveryStatus?: string;
   region: string;
   product: string;
   objective: IntelligenceObjective;
