@@ -73,6 +73,7 @@ export async function callMetaReadTool(
   tool: MetaReadTool,
   args: Record<string, unknown>,
   context?: MetaRequestContext,
+  options?: { timeoutMs?: number },
 ) {
   assertMetaReadTool(tool);
   const config = getMetaConfig();
@@ -99,7 +100,7 @@ export async function callMetaReadTool(
       },
     }),
     cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
+    signal: AbortSignal.timeout(options?.timeoutMs ?? 20_000),
   });
 
   const raw = await response.text();

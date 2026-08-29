@@ -83,10 +83,10 @@ export async function runLiveMetaAudit(accessToken: string, accountId: string, a
     }, context),
     safeToolCall(accessToken, "ads_get_ad_entities", {
       ad_account_id: accountId, level: "adset", fields: entityFields, time_range: JSON.stringify({ since, until }), time_increment: "all_days", sort: "amount_spent_descending", limit: 1000,
-    }, context),
+    }, context, 8_000),
     safeToolCall(accessToken, "ads_get_ad_entities", {
       ad_account_id: accountId, level: "ad", fields: entityFields, time_range: JSON.stringify({ since, until }), time_increment: "all_days", sort: "amount_spent_descending", limit: 1000,
-    }, context),
+    }, context, 8_000),
     safeToolCall(accessToken, "ads_get_opportunity_score", { ad_account_id: accountId }, context),
     safeToolCall(accessToken, "ads_insights_performance_trend", { ad_account_id: accountId }, context),
   ]);
@@ -122,9 +122,10 @@ async function safeToolCall(
   tool: MetaReadTool,
   args: Record<string, unknown>,
   context: MetaRequestContext,
+  timeoutMs?: number,
 ): Promise<ToolCallResult> {
   try {
-    const result = await callMetaReadTool(accessToken, tool, args, context);
+    const result = await callMetaReadTool(accessToken, tool, args, context, { timeoutMs });
     return { status: "ok", data: unwrapMetaToolResult(result) };
   } catch (error) {
     return { status: "unavailable", message: error instanceof Error ? error.message : `${tool} is unavailable.` };

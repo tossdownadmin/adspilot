@@ -4,6 +4,8 @@ import { AgentConfigurationError, AgentRuntimeError, parseAgentInput, runAdPilot
 import { getMetaSession, META_SESSION_COOKIE } from "@/lib/meta/session-store";
 
 export const runtime = "nodejs";
+// Allow the bounded Meta audit plus one LLM synthesis to complete on Vercel.
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const cookieStore = await cookies();
