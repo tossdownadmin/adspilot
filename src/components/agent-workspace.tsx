@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { ArrowRight, Bot, LoaderCircle, Send, Sparkles, TriangleAlert } from "lucide-react";
 
-type Message = { role: "user" | "assistant"; content: string };
+type Message = { role: "user" | "assistant"; content: string; tools?: string[] };
 
 const suggestions = [
   "Audit this account and tell me the three most important things to do next.",
@@ -13,6 +13,7 @@ const suggestions = [
 ];
 
 export function AgentWorkspace({ account, onChooseAccount }: { account: { id: string; name: string; currency?: string }; onChooseAccount: () => void }) {
+  const [conversationId] = useState(() => crypto.randomUUID().replaceAll("-", "").slice(0, 20));
   const [messages, setMessages] = useState<Message[]>([]);
   const [prompt, setPrompt] = useState("");
   const [asking, setAsking] = useState(false);
@@ -31,11 +32,12 @@ export function AgentWorkspace({ account, onChooseAccount }: { account: { id: st
       const response = await fetch("/api/agent/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId: account.id, prompt: request, history }),
+        body: JSON.stringify({ accountId: account.id, prompt: request, history, conversationId }),
       });
-      const body = await response.json() as { answer?: string; message?: string; error?: string };
+      const body = await response.json() as { answer?: string; message?: string; error?: string; toolTrace?: Array<{ tool: string; status: "ok" | "error" }> };
       if (!response.ok || !body.answer) throw new Error(body.message || body.error || "AdPilot could not complete that request.");
-      setMessages((current) => [...current, { role: "assistant", content: body.answer! }]);
+      const tools = [...new Set((body.toolTrace ?? []).filter((item) => item.status === "ok").map((item) => item.tool))];
+      setMessages((current) => [...current, { role: "assistant", content: body.answer!, tools }]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "AdPilot could not complete that request.");
     } finally {
@@ -51,7 +53,7 @@ export function AgentWorkspace({ account, onChooseAccount }: { account: { id: st
 
     <section className="agent-chat panel">
       <div className="agent-thread">
-        {messages.length === 0 ? <div className="agent-welcome"><div className="agent-welcome-icon"><Sparkles size={24} /></div><h2>What would you like AdPilot to do?</h2><p>Start with an audit, ask about a campaign, compare regions, or request a campaign plan.</p><div className="agent-suggestions">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => setPrompt(suggestion)}>{suggestion}<ArrowRight size={13} /></button>)}</div></div> : messages.map((message, index) => <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}><div>{message.role === "assistant" ? <Bot size={17} /> : "You"}</div><p>{message.content}</p></article>)}
+        {messages.length === 0 ? <div className="agent-welcome"><div className="agent-welcome-icon"><Sparkles size={24} /></div><h2>What would you like AdPilot to do?</h2><p>Start with an audit, ask about a campaign, compare regions, or request a campaign plan.</p><div className="agent-suggestions">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => setPrompt(suggestion)}>{suggestion}<ArrowRight size={13} /></button>)}</div></div> : messages.map((message, index) => <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}><div>{message.role === "assistant" ? <Bot size={17} /> : "You"}</div><section><p>{message.content}</p>{message.tools?.length ? <details className="agent-tools-used"><summary>{message.tools.length} live tools used</summary><span>{message.tools.join(" · ")}</span></details> : null}</section></article>)}
         {asking && <article className="chat-message assistant"><div><Bot size={17} /></div><p className="agent-thinking"><LoaderCircle className="spin" size={15} /> Reading live Meta data and choosing tools…</p></article>}
       </div>
       {error && <div className="agent-inline-error"><TriangleAlert size={16} /><span>{error}</span></div>}

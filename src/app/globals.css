@@ -789,6 +789,9 @@ main { min-height: calc(100vh - 62px); }
 .chat-message > div { display: grid; place-items: center; width: 36px; height: 36px; color: var(--green); background: var(--green-soft); border-radius: 10px; font-size: 9px; font-weight: 800; }
 .chat-message.user > div { color: white; background: #52635b; }
 .chat-message p { margin: 0; padding: 9px 0; color: #25332d; white-space: pre-wrap; font-size: 13px; line-height: 1.65; }
+.agent-tools-used { margin-top: 4px; color: var(--muted); font-size: 9px; }
+.agent-tools-used summary { cursor: pointer; color: #477565; }
+.agent-tools-used span { display: block; margin-top: 6px; line-height: 1.5; }
 .agent-thinking { display: flex; align-items: center; gap: 8px; color: var(--muted) !important; }
 .agent-inline-error { display: flex; align-items: center; gap: 8px; margin: 0 22px 10px; padding: 10px 12px; color: #963f38; background: #fff2f0; border-radius: 8px; font-size: 10px; }
 .agent-composer { display: grid; grid-template-columns: minmax(0, 1fr) 46px; gap: 10px; margin: 0 20px; padding: 10px; background: white; border: 1px solid #cddbd4; border-radius: 14px; box-shadow: 0 8px 30px rgba(22,54,42,.08); }
