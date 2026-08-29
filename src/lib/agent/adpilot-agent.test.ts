@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AgentConfigurationError, getAgentConfig, parseAgentInput, runAdPilotAgent } from "./adpilot-agent";
+import { AgentConfigurationError, getAgentConfig, parseAgentInput, runAdPilotAgent, shouldShowAuditPresentation } from "./adpilot-agent";
 
 describe("AdPilot agent boundary", () => {
   const initialKey = process.env.OPENAI_API_KEY;
@@ -26,5 +26,11 @@ describe("AdPilot agent boundary", () => {
   it("keeps the model name configurable", () => {
     process.env.OPENAI_MODEL = "account-approved-model";
     expect(getAgentConfig().model).toBe("account-approved-model");
+  });
+
+  it("shows audit cards only for a fresh analysis request", () => {
+    expect(shouldShowAuditPresentation({ accountId: "720643091975703", prompt: "Audit what is working" })).toBe(true);
+    expect(shouldShowAuditPresentation({ accountId: "720643091975703", prompt: "Build a campaign playbook from winners" })).toBe(false);
+    expect(shouldShowAuditPresentation({ accountId: "720643091975703", prompt: "Manassas", history: [{ role: "assistant", content: "Which region?" }] })).toBe(false);
   });
 });

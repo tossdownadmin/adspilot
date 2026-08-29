@@ -73,6 +73,13 @@ export function getAgentConfig() {
   return { apiKey: process.env.OPENAI_API_KEY?.trim(), model: process.env.OPENAI_MODEL?.trim() || "gpt-5" };
 }
 
+export function shouldShowAuditPresentation(input: AgentRunInput) {
+  if (input.history?.length) return false;
+  const asksToBuild = /\b(build|create|draft|generate|playbook|new campaign)\b/i.test(input.prompt);
+  const asksToAnalyze = /\b(audit|analy[sz]e|performance|working|winners?|underperform|compare)\b/i.test(input.prompt);
+  return asksToAnalyze && !asksToBuild;
+}
+
 export async function runAdPilotAgent(input: AgentRunInput, accessToken: string): Promise<AgentRun> {
   const config = getAgentConfig();
   if (!config.apiKey) throw new AgentConfigurationError("OPENAI_API_KEY is not configured.");
@@ -108,6 +115,10 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
     "For an account audit, use get_account_diagnosis after get_live_account_audit. Lead with a short TL;DR, then What is working, What needs attention, reliable patterns by objective/region/product, and Next three actions.",
     "Meta does not provide a native historical job-to-be-done (JTD). Do not treat unknown historical JTD as a data problem, do not ask the user to tag old campaigns, and do not include a JTD audit section unless knownJtdShare is at least 0.6 and the user asked for it.",
     "JTD is a brief input for a NEW campaign. When the user asks to build a campaign or playbook and the intended job is unclear, ask one concise follow-up question before calling build_campaign_playbook; never use unknown as a shortcut.",
+    "Translate natural campaign intent into the JTD taxonomy without exposing enum syntax. For example, a BOGO offered for joining rewards means Loyalty signup; a general short-lived BOGO promotion means Promote a limited-time offer.",
+    "Collect all genuinely necessary missing campaign details in one concise question, never one field per turn. Ask at most one clarification round before drafting.",
+    "For a read-only draft, make safe labeled assumptions instead of blocking: infer an obvious product such as Rewards membership from the offer, use the user's wording as offer copy, and use a conservative $30/day starting budget when none is supplied. The user can revise assumptions after seeing the draft.",
+    "Refer to JTDs with human labels such as Loyalty signup, not internal values such as loyalty_signup.",
     "Write polished Markdown for business users: concise headings, bullets, and comparison tables where useful. Escape vertical bars inside campaign names as \\|. Avoid internal implementation terms such as cohortKey, deterministic tier, or evidence package unless the user asks.",
     "Never call a highest-spend campaign a winner unless its deterministic tier is winner. Clearly distinguish spend leaders from performance leaders.",
     brainProse,
@@ -120,7 +131,7 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
     instructions,
     input: conversation,
     tools,
-    tool_choice: "required",
+    tool_choice: input.history?.length ? "auto" : "required",
   });
 
   const maxToolRounds = 8;
@@ -131,7 +142,7 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
         runId, source: "ADPILOT_AGENT_V1", accountId: input.accountId,
         answer: response.output_text || outputText(response) || "The model returned no answer.", toolTrace: trace,
         evidence: { auditId: audit?.auditId, window: audit?.window, campaignIds: results.map((result) => result.campaign.campaignId) },
-        presentation: buildPresentation(results),
+        presentation: shouldShowAuditPresentation(input) ? buildPresentation(results) : undefined,
       };
     }
 
@@ -172,7 +183,7 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
         answer: finalResponse.output_text || outputText(finalResponse) || "The analysis completed, but the model returned no written answer.",
         toolTrace: trace,
         evidence: { auditId: audit?.auditId, window: audit?.window, campaignIds: results.map((result) => result.campaign.campaignId) },
-        presentation: buildPresentation(results),
+        presentation: shouldShowAuditPresentation(input) ? buildPresentation(results) : undefined,
       };
     }
 

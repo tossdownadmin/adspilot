@@ -42,6 +42,6 @@ export function AgentReport({ report }: { report: AgentPresentation }) {
   const maxScore = Math.max(...report.leaders.map((item) => item.score), 1);
   return <div className="agent-report">
     <div className="agent-metric-grid">{report.metrics.map((metric) => <div key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.detail}</small></div>)}</div>
-    {report.leaders.length > 0 && <section className="agent-chart"><h3>Strongest evidence by objective</h3>{report.leaders.map((item) => <div className="agent-chart-row" key={`${item.objective}-${item.name}`}><span title={item.name}>{item.name}</span><i><b style={{ width: `${Math.max(4, item.score / maxScore * 100)}%` }} /></i><strong>{Math.round(item.score * 100)}</strong></div>)}</section>}
+    {report.leaders.length > 0 && <section className="agent-chart"><h3>Strongest evidence by objective</h3>{report.leaders.map((item) => <div className="agent-chart-row" key={`${item.objective}-${item.name}`}><span title={item.name}>{item.name}</span><i><b style={{ width: `${Math.max(4, item.score / maxScore * 100)}%` }} /></i><strong>{Math.round(item.score * 100)} score</strong></div>)}</section>}
   </div>;
 }
