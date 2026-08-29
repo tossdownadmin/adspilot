@@ -4,7 +4,7 @@ import { auditCampaigns, buildAccountDiagnosis, buildIntelligencePlaybook } from
 import type { AuditResult } from "../intelligence-domain";
 import { runLiveMetaAudit, type LiveMetaAudit } from "../meta/live-audit";
 import { liveCampaignsToHistory } from "../meta/live-intelligence";
-import { callMetaReadTool, listMetaReadToolDefinitions, META_READ_TOOLS, type MetaReadTool, unwrapMetaToolResult } from "../meta/mcp-client";
+import { callMetaReadTool, META_READ_TOOLS, type MetaReadTool, unwrapMetaToolResult } from "../meta/mcp-client";
 
 const AgentInputSchema = z.object({
   accountId: z.string().regex(/^\d{5,30}$/, "Select a valid Meta ad account."),
@@ -94,15 +94,9 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
   let results: AuditResult[] = [];
   const runId = `agent_${crypto.randomUUID()}`;
   const clientConversationId = input.conversationId || crypto.randomUUID().replaceAll("-", "").slice(0, 20);
-  const metaDefinitions = await listMetaReadToolDefinitions(accessToken).catch(() => []);
-  const metaTools = metaDefinitions.map((definition) => ({
-    type: "function",
-    name: definition.name,
-    description: definition.description || `Read live Meta Ads data with ${definition.name}.`,
-    parameters: definition.inputSchema || { type: "object", properties: {} },
-    strict: false,
-  }));
-  const tools = [...internalTools, ...metaTools];
+  // Internal tools are the bounded orchestration layer over Meta's read-only MCP.
+  // Keeping raw provider tools out of this loop prevents duplicate calls and timeouts.
+  const tools = [...internalTools];
   const instructions = [
     "You are AdPilot, a careful Meta ads analyst.",
     "Use the internal tools to obtain evidence before answering account-performance questions.",
@@ -137,7 +131,7 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
     tool_choice: input.history?.length ? "auto" : "required",
   });
 
-  const maxToolRounds = 8;
+  const maxToolRounds = 5;
   for (let pass = 0; pass < maxToolRounds; pass += 1) {
     const calls = response.output?.filter((item) => item.type === "function_call") ?? [];
     if (!calls.length) {
