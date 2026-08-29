@@ -26,6 +26,8 @@ export function IntelligenceLab({ account, onChooseAccount }: { account?: { id: 
     if (!account) return;
     setRunning(true);
     setError("");
+    setAudit(undefined);
+    setResults([]);
     setSelected(undefined);
     try {
       const response = await fetch("/api/meta/audit", {
@@ -35,6 +37,7 @@ export function IntelligenceLab({ account, onChooseAccount }: { account?: { id: 
       });
       const body = await response.json() as { audit?: LiveMetaAudit; intelligenceResults?: AuditResult[]; message?: string; error?: string };
       if (!response.ok || !body.audit) throw new Error(body.message || body.error || "Meta intelligence data is unavailable.");
+      if (body.audit.accountId !== account.id) throw new Error("Meta returned data for a different ad account. Please reconnect and try again.");
       setAudit(body.audit);
       setResults(body.intelligenceResults ?? []);
     } catch (cause) {
@@ -52,9 +55,9 @@ export function IntelligenceLab({ account, onChooseAccount }: { account?: { id: 
 
   if (!account) return <div className="page intelligence-page"><div className="panel empty-live-audit"><BrainCircuit size={28} /><h2>Select a live Meta account</h2><p>Intelligence does not use demo data. Choose the account whose campaigns should be scored.</p><button className="button primary" onClick={onChooseAccount}>Choose account</button></div></div>;
 
-  if (running && !audit) return <div className="page intelligence-page"><div className="live-audit-loading"><LoaderCircle className="spin" size={30} /><span className="live-data-badge">LIVE META DATA</span><h1>Building intelligence for {account.name}</h1><p>Reading campaign outcomes and applying deterministic scoring rules.</p></div></div>;
+  if (running) return <div className="page intelligence-page"><div className="live-audit-loading"><LoaderCircle className="spin" size={30} /><span className="live-data-badge">LIVE META DATA</span><h1>Building intelligence for {account.name}</h1><p>Reading campaign outcomes and applying deterministic scoring rules.</p></div></div>;
 
-  if (error && !audit) return <div className="page intelligence-page"><div className="panel live-audit-error"><TriangleAlert size={28} /><h2>Live intelligence needs attention</h2><p>{error}</p><div><button className="button primary" onClick={() => void loadLiveIntelligence()}>Try again</button><button className="button secondary" onClick={onChooseAccount}>Check account</button></div></div></div>;
+  if (error) return <div className="page intelligence-page"><div className="panel live-audit-error"><TriangleAlert size={28} /><h2>Live intelligence needs attention</h2><p>{error}</p><div><button className="button primary" onClick={() => void loadLiveIntelligence()}>Try again</button><button className="button secondary" onClick={onChooseAccount}>Check account</button></div></div></div>;
 
   return <div className="page intelligence-page">
     <div className="intel-hero">

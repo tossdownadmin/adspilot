@@ -365,6 +365,7 @@ function LiveAuditView({ account, onChooseAccount, onNavigate }: { account?: Met
     if (!account) return;
     setRunning(true);
     setError("");
+    setAudit(undefined);
     try {
       const response = await fetch("/api/meta/audit", {
         method: "POST",
@@ -373,6 +374,7 @@ function LiveAuditView({ account, onChooseAccount, onNavigate }: { account?: Met
       });
       const body = (await response.json()) as { audit?: LiveMetaAudit; message?: string; error?: string };
       if (!response.ok || !body.audit) throw new Error(body.message || body.error || "The live audit could not run.");
+      if (body.audit.accountId !== account.id) throw new Error("Meta returned data for a different ad account. Please reconnect and try again.");
       setAudit(body.audit);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The live audit could not run.");
@@ -445,10 +447,12 @@ function LiveCampaignsView({ account, onChooseAccount }: { account?: MetaAccount
     if (!account) return;
     setRunning(true);
     setError("");
+    setAudit(undefined);
     try {
       const response = await fetch("/api/meta/audit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId: account.id }) });
       const body = await response.json() as { audit?: LiveMetaAudit; message?: string; error?: string };
       if (!response.ok || !body.audit) throw new Error(body.message || body.error || "Live campaigns are unavailable.");
+      if (body.audit.accountId !== account.id) throw new Error("Meta returned data for a different ad account. Please reconnect and try again.");
       setAudit(body.audit);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Live campaigns are unavailable.");
@@ -464,8 +468,8 @@ function LiveCampaignsView({ account, onChooseAccount }: { account?: MetaAccount
   }, [account?.id]);
 
   if (!account) return <div className="page"><div className="panel empty-live-audit"><Megaphone size={28} /><h2>Select a live Meta account</h2><p>Campaigns never fall back to local demo records.</p><button className="button primary" onClick={onChooseAccount}>Choose account</button></div></div>;
-  if (running && !audit) return <div className="page"><div className="live-audit-loading"><LoaderCircle className="spin" size={30} /><span className="live-data-badge">LIVE META DATA</span><h1>Reading campaigns for {account.name}</h1></div></div>;
-  if (error && !audit) return <div className="page"><div className="panel live-audit-error"><TriangleAlert size={28} /><h2>Live campaigns need attention</h2><p>{error}</p><button className="button primary" onClick={() => void loadCampaigns()}>Try again</button></div></div>;
+  if (running) return <div className="page"><div className="live-audit-loading"><LoaderCircle className="spin" size={30} /><span className="live-data-badge">LIVE META DATA</span><h1>Reading campaigns for {account.name}</h1></div></div>;
+  if (error) return <div className="page"><div className="panel live-audit-error"><TriangleAlert size={28} /><h2>Live campaigns need attention</h2><p>{error}</p><button className="button primary" onClick={() => void loadCampaigns()}>Try again</button></div></div>;
   const campaigns = audit?.campaigns.status === "ok" ? audit.campaigns.data : [];
   const query = search.trim().toLowerCase();
   const visible = campaigns.filter((campaign) => !query || campaign.name.toLowerCase().includes(query) || campaign.id.includes(query));
