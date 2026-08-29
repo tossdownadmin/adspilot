@@ -43,5 +43,6 @@ export function AgentReport({ report }: { report: AgentPresentation }) {
   return <div className="agent-report">
     <div className="agent-metric-grid">{report.metrics.map((metric) => <div key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.detail}</small></div>)}</div>
     {report.leaders.length > 0 && <section className="agent-chart"><h3>Strongest evidence by objective</h3>{report.leaders.map((item) => <div className="agent-chart-row" key={`${item.objective}-${item.name}`}><span title={item.name}>{item.name}</span><i><b style={{ width: `${Math.max(4, item.score / maxScore * 100)}%` }} /></i><strong>{Math.round(item.score * 100)} score</strong></div>)}</section>}
+    {report.creatives.length > 0 && <section className="agent-creative-strip"><h3>Top live creatives by spend</h3><div>{report.creatives.map((creative) => <article key={creative.id}>{creative.thumbnailUrl ? <img src={creative.thumbnailUrl} alt="" /> : <span className="agent-creative-placeholder">Ad</span>}<strong title={creative.name}>{creative.name}</strong><small>{creative.conversions} outcomes · {creative.ctr === null ? "CTR unavailable" : `${(creative.ctr * 100).toFixed(2)}% CTR`}</small><b>${creative.spend.toFixed(0)} spend</b></article>)}</div></section>}
   </div>;
 }

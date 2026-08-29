@@ -810,6 +810,7 @@ main { min-height: calc(100vh - 62px); }
 .agent-chart-row { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(90px, 1.2fr) 48px; gap: 9px; align-items: center; padding: 5px 0; }
 .agent-chart-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; }.agent-chart-row > strong { font-size: 8px; text-align: right; }
 .agent-chart-row i { height: 6px; overflow: hidden; background: #e6eeea; border-radius: 5px; }.agent-chart-row i b { display: block; height: 100%; background: var(--green); border-radius: 5px; }
+.agent-creative-strip { margin-top: 9px; padding: 13px; border: 1px solid var(--line); border-radius: 9px; }.agent-creative-strip h3 { margin: 0 0 10px; font-size: 11px; }.agent-creative-strip > div { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }.agent-creative-strip article { display: grid; gap: 4px; min-width: 0; }.agent-creative-strip img, .agent-creative-placeholder { display: grid; place-items: center; width: 100%; height: 56px; object-fit: cover; color: #56806d; background: #e5efe9; border-radius: 6px; font-size: 9px; }.agent-creative-strip strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; }.agent-creative-strip small { color: var(--muted); font-size: 7px; }.agent-creative-strip b { color: var(--green); font-size: 8px; }
 .agent-tools-used { margin-top: 4px; color: var(--muted); font-size: 9px; }
 .agent-tools-used summary { cursor: pointer; color: #477565; }
 .agent-tools-used span { display: block; margin-top: 6px; line-height: 1.5; }
@@ -822,4 +823,4 @@ main { min-height: calc(100vh - 62px); }
 .agent-composer button:disabled { cursor: not-allowed; opacity: .45; }
 .agent-safety-note { margin: 9px 24px 15px; color: var(--muted); text-align: center; font-size: 8px; }
 @media (max-width: 800px) { .agent-workspace { width: min(100% - 28px, 980px); } .agent-workspace-head { align-items: stretch; flex-direction: column; } .agent-account-pill { width: 100%; } .agent-suggestions, .agent-metric-grid { grid-template-columns: 1fr 1fr; } .agent-thread { max-height: none; } }
-@media (max-width: 560px) { .agent-metric-grid { grid-template-columns: 1fr; } .agent-chart-row { grid-template-columns: minmax(110px, 1fr) 70px 46px; } }
+@media (max-width: 560px) { .agent-metric-grid { grid-template-columns: 1fr; } .agent-chart-row { grid-template-columns: minmax(110px, 1fr) 70px 46px; } .agent-creative-strip > div { grid-template-columns: repeat(2, 1fr); } }

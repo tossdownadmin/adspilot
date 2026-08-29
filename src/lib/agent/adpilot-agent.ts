@@ -31,6 +31,7 @@ export type AgentPresentation = {
   metrics: Array<{ label: string; value: string; detail: string }>;
   leaders: Array<{ name: string; objective: string; score: number; spend: number }>;
   attention: Array<{ name: string; spend: number; reason: string }>;
+  creatives: Array<{ id: string; name: string; spend: number; conversions: number; ctr: number | null; thumbnailUrl?: string; campaignId?: string }>;
 };
 
 type ResponseItem = { type?: string; name?: string; call_id?: string; arguments?: string; content?: Array<{ type?: string; text?: string }> };
@@ -144,7 +145,7 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
         runId, source: "ADPILOT_AGENT_V1", accountId: input.accountId,
         answer: response.output_text || outputText(response) || "The model returned no answer.", toolTrace: trace,
         evidence: { auditId: audit?.auditId, window: audit?.window, campaignIds: results.map((result) => result.campaign.campaignId) },
-        presentation: shouldShowAuditPresentation(input) ? buildPresentation(results) : undefined,
+        presentation: shouldShowAuditPresentation(input) ? buildPresentation(results, audit) : undefined,
       };
     }
 
@@ -185,7 +186,7 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
         answer: finalResponse.output_text || outputText(finalResponse) || "The analysis completed, but the model returned no written answer.",
         toolTrace: trace,
         evidence: { auditId: audit?.auditId, window: audit?.window, campaignIds: results.map((result) => result.campaign.campaignId) },
-        presentation: shouldShowAuditPresentation(input) ? buildPresentation(results) : undefined,
+        presentation: shouldShowAuditPresentation(input) ? buildPresentation(results, audit) : undefined,
       };
     }
 
@@ -341,7 +342,7 @@ function accountDiagnosisForAgent(results: AuditResult[]) {
   };
 }
 
-function buildPresentation(results: AuditResult[]): AgentPresentation | undefined {
+function buildPresentation(results: AuditResult[], audit?: LiveMetaAudit): AgentPresentation | undefined {
   if (!results.length) return undefined;
   const diagnosis = buildAccountDiagnosis(results);
   const leaders = Object.entries(diagnosis.bestByObjective)
@@ -359,6 +360,7 @@ function buildPresentation(results: AuditResult[]): AgentPresentation | undefine
     ],
     leaders,
     attention: diagnosis.wasteCandidates.slice(0, 5).map(({ name, spend, reason }) => ({ name, spend, reason })),
+    creatives: audit?.ads.status === "ok" ? audit.ads.data.slice().sort((left, right) => (right.spend ?? 0) - (left.spend ?? 0)).slice(0, 5).map((ad) => ({ id: ad.id, name: ad.creativeName || ad.name, spend: ad.spend ?? 0, conversions: ad.purchases ?? ad.results ?? 0, ctr: ad.ctr ?? null, thumbnailUrl: ad.thumbnailUrl, campaignId: ad.campaignId })) : [],
   };
 }
 
