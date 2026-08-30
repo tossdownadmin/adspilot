@@ -135,9 +135,11 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
     try {
       const finalResponse = await createResponse(config.apiKey, {
         model: config.model, store: false,
+        reasoning: { effort: "low" },
+        max_output_tokens: 4_000,
         instructions: `${instructions}\n\nUse the supplied live evidence and write the completed audit directly. Do not call tools or describe tool planning.`,
         input: [{ role: "user", content: input.prompt }, { role: "user", content: JSON.stringify(auditSummary(audit, results)) }],
-      });
+      }, 45_000);
       answer = finalResponse.output_text || outputText(finalResponse) || fallbackAuditAnswer(audit, results);
     } catch {
       answer = fallbackAuditAnswer(audit, results);
@@ -277,17 +279,31 @@ function fallbackAuditAnswer(audit: LiveMetaAudit, results: AuditResult[]) {
 }
 
 function auditSummary(audit: LiveMetaAudit, results: AuditResult[]) {
+  const bySpend = [...results].sort((left, right) => right.campaign.spend - left.campaign.spend);
+  const byScore = [...results].filter((result) => result.significant).sort((left, right) => (right.score ?? -1) - (left.score ?? -1));
   return {
     source: audit.source, accountId: audit.accountId, auditId: audit.auditId, window: audit.window, retrievedAt: audit.retrievedAt,
     campaignCount: results.length,
-    topCampaigns: proactiveAudit(results),
+    topSpendCampaigns: proactiveAudit(results),
+    objectiveLeaders: byScore.slice(0, 10).map(compactCampaign),
+    activeAttention: bySpend.filter((result) => result.tier === "underperformer" || result.tier === "kill_candidate").slice(0, 10).map(compactCampaign),
     adSets: audit.adSets,
     creatives: audit.ads,
     diagnosis: accountDiagnosisForAgent(results),
-    opportunityScore: audit.opportunity.status === "ok" ? audit.opportunity.data.score ?? "Not enough data" : "Unavailable",
-    deliveryIssueCount: audit.errors.status === "ok" ? audit.errors.data.count : "Unavailable",
-    note: "Use get_top_campaigns, get_campaign_evidence, or get_dimension_patterns for detailed evidence.",
+    opportunity: audit.opportunity.status === "ok"
+      ? { score: audit.opportunity.data.score ?? "Not enough data", recommendations: audit.opportunity.data.recommendations.slice(0, 10) }
+      : { status: "unavailable", message: audit.opportunity.message },
+    deliveryIssues: audit.errors.status === "ok"
+      ? { count: audit.errors.data.count, items: audit.errors.data.items.slice(0, 10) }
+      : { status: "unavailable", message: audit.errors.message },
+    weekOverWeekTrend: audit.trend.status === "ok" ? boundedEvidence(audit.trend.data) : { status: "unavailable", message: audit.trend.message },
+    dataGaps: [audit.adSets, audit.ads].filter((section) => section.status === "unavailable").map((section) => section.status === "unavailable" ? section.message : ""),
   };
+}
+
+function boundedEvidence(value: unknown, maxCharacters = 6_000) {
+  const serialized = JSON.stringify(value);
+  return serialized.length <= maxCharacters ? value : `${serialized.slice(0, maxCharacters)}… [truncated]`;
 }
 
 function topCampaigns(results: AuditResult[], args: Record<string, unknown>) {
@@ -424,10 +440,10 @@ function buildPresentation(results: AuditResult[], audit?: LiveMetaAudit): Agent
   };
 }
 
-async function createResponse(apiKey: string, body: Record<string, unknown>): Promise<OpenAiResponse> {
+async function createResponse(apiKey: string, body: Record<string, unknown>, timeoutMs = 15_000): Promise<OpenAiResponse> {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body), cache: "no-store", signal: AbortSignal.timeout(15_000),
+    body: JSON.stringify(body), cache: "no-store", signal: AbortSignal.timeout(timeoutMs),
   });
   const payload = await response.json().catch(() => null) as OpenAiResponse & { error?: { message?: string } } | null;
   if (!response.ok || !payload) throw new AgentRuntimeError(payload?.error?.message || "The LLM provider is unavailable.");
