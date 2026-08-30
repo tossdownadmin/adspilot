@@ -11,6 +11,7 @@ export type LiveCampaignRow = {
   name: string;
   objective?: string;
   status?: string;
+  effectiveStatus?: string;
   spend?: number;
   impressions?: number;
   clicks?: number;
@@ -82,15 +83,14 @@ export async function runLiveMetaAudit(accessToken: string, accountId: string, a
       level: "campaign",
       fields: campaignFields,
       time_range: JSON.stringify({ since, until }),
-      time_increment: "all_days",
       sort: "amount_spent_descending",
-      limit: 1000,
+      limit: 300,
     }, context, 12_000),
     safeToolCall(accessToken, "ads_get_ad_entities", {
-      ad_account_id: accountId, level: "adset", fields: entityFields, time_range: JSON.stringify({ since, until }), time_increment: "all_days", sort: "amount_spent_descending", limit: 1000,
+      ad_account_id: accountId, level: "adset", fields: entityFields, time_range: JSON.stringify({ since, until }), sort: "amount_spent_descending", limit: 250,
     }, context, 8_000),
     safeToolCall(accessToken, "ads_get_ad_entities", {
-      ad_account_id: accountId, level: "ad", fields: entityFields, time_range: JSON.stringify({ since, until }), time_increment: "all_days", sort: "amount_spent_descending", limit: 1000,
+      ad_account_id: accountId, level: "ad", fields: entityFields, time_range: JSON.stringify({ since, until }), sort: "amount_spent_descending", limit: 250,
     }, context, 8_000),
     safeToolCall(accessToken, "ads_get_opportunity_score", { ad_account_id: accountId }, context, 8_000),
     safeToolCall(accessToken, "ads_insights_performance_trend", { ad_account_id: accountId }, context, 8_000),
@@ -203,7 +203,8 @@ function normalizeCampaign(value: unknown): LiveCampaignRow | undefined {
     adSetId: stringValue(firstValue(row, ["adset_id", "ad_set_id", "adSetId"])),
     name: stringValue(firstValue(row, ["name", "campaign_name"])) || `Campaign ${id}`,
     objective: stringValue(firstValue(row, ["objective", "campaign_objective"])),
-    status: stringValue(firstValue(row, ["status", "effective_status"])),
+    status: stringValue(row.status),
+    effectiveStatus: stringValue(firstValue(row, ["effective_status", "status"])),
     spend: numberValue(firstValue(row, ["amount_spent", "spend"])),
     impressions: numberValue(row.impressions),
     clicks: numberValue(row.clicks),
@@ -212,8 +213,8 @@ function normalizeCampaign(value: unknown): LiveCampaignRow | undefined {
     cpc: numberValue(row.cpc),
     cpm: numberValue(row.cpm),
     frequency: numberValue(row.frequency),
-    results: numberValue(row.results),
-    costPerResult: numberValue(row.cost_per_result),
+    results: resultValue(row.results),
+    costPerResult: resultValue(row.cost_per_result),
     landingPageViews: numberValue(firstValue(row, ["omni_landing_page_view", "landing_page_view"])),
     purchases: numberValue(firstValue(row, ["omni_purchase", "offsite_conversion_fb_pixel_purchase", "results"])),
     purchaseValue: numberValue(firstValue(row, ["omni_purchase_values", "offsite_conversion_fb_pixel_purchase_values"])),
@@ -296,6 +297,18 @@ function numberValue(value: unknown) {
     return Number.isFinite(parsed) ? parsed : undefined;
   }
   return undefined;
+}
+
+function resultValue(value: unknown): number | undefined {
+  const scalar = numberValue(value);
+  if (scalar !== undefined) return scalar;
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  if (Array.isArray(record.values)) {
+    const first = record.values[0];
+    if (first && typeof first === "object") return numberValue((first as Record<string, unknown>).value);
+  }
+  return numberValue(record.value);
 }
 
 function toDateString(date: Date) {
