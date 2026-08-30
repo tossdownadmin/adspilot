@@ -20,6 +20,7 @@ const scoringSchema = z.object({
     highConcentrationShare: z.number().min(0).max(1),
   }).strict(),
   nuance: z.object({ frequencySaturationThreshold: z.number().positive() }).strict(),
+  absoluteFloor: z.object({ sales: z.object({ roas: z.number().nonnegative(), maxCpa: z.number().positive() }).strict(), leads: z.object({ maxCpa: z.number().positive() }).strict(), traffic: z.object({ maxCpa: z.number().positive() }).strict(), awareness: z.object({ maxCostPerThousandReached: z.number().positive() }).strict() }).strict(),
   normalization: z.object({ method: z.literal("min_max"), tieValue: z.number().min(0).max(1) }).strict(),
 }).strict();
 

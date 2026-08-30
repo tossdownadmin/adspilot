@@ -63,7 +63,8 @@ The scoring itself is currency-safe because it's **relative within a cohort** â€
   "guards": { "salesRoasMultiplier": 1.2, "costGuardMultiplier": 0.8, "killCostMultiplier": 2.0 },
   "cohort": { "minForRelativeScoring": 5, "fallbackToObjective": true },
   "diagnosis": { "topPerObjective": 3, "wasteLimit": 5, "concentrationCampaignCount": 5, "highConcentrationShare": 0.7 },
-  "nuance": { "frequencySaturationThreshold": 2.1 },
+  "nuance": { "frequencySaturationThreshold": 6 },
+  "absoluteFloor": { "sales": { "roas": 3.0, "maxCpa": 8.0 }, "leads": { "maxCpa": 8.0 }, "traffic": { "maxCpa": 3.0 }, "awareness": { "maxCostPerThousandReached": 20.0 } },
   "normalization": { "method": "min_max", "tieValue": 0.5 }
 }
 ```

@@ -215,7 +215,7 @@ async function executeTool(tool: string, args: Record<string, unknown>, state: T
   }
   if (tool === "get_live_account_audit") {
     const audit = await runLiveMetaAudit(state.accessToken, state.accountId, state.advertiserRequest);
-    const results = audit.campaigns.status === "ok" ? auditCampaigns(liveCampaignsToHistory(audit.campaigns.data, audit.window)) : [];
+    const results = audit.campaigns.status === "ok" ? auditCampaigns(liveCampaignsToHistory(audit.campaigns.data.filter((row) => isActive(row.effectiveStatus || row.status)), audit.window)) : [];
     return { audit, results, value: auditSummary(audit, results) };
   }
   if (!state.audit) throw new AgentRuntimeError("Run get_live_account_audit before using other account tools.");
@@ -227,6 +227,10 @@ async function executeTool(tool: string, args: Record<string, unknown>, state: T
   if (tool === "get_dimension_patterns") return { value: dimensionPatterns(state.results, args) };
   if (tool === "build_campaign_playbook") return { value: campaignPlaybook(state.results, args) };
   throw new AgentRuntimeError(`Tool is not available: ${tool}`);
+}
+
+function isActive(status?: string) {
+  return !status || String(status).toUpperCase() === "ACTIVE";
 }
 
 function auditSummary(audit: LiveMetaAudit, results: AuditResult[]) {

@@ -21,9 +21,11 @@ export function significanceFailures(c: HistoricalCampaign): string[] {
   const failures: string[] = [];
   const require = (condition: boolean, code: string) => { if (!condition) failures.push(code); };
   const gate = brain.significance.gates[c.objective];
+  const highVolume = gate.minConversions !== undefined && c.conversions >= gate.minConversions * 3;
+  if (highVolume) return failures;
   require(c.spend >= gate.minSpend, `min_spend_${gate.minSpend}`);
   if (gate.minImpressions !== undefined) require(c.impressions >= gate.minImpressions, `min_impressions_${gate.minImpressions}`);
-  if (gate.minConversions !== undefined) require(c.conversions >= gate.minConversions, c.objective === "sales" ? `min_purchases_${gate.minConversions}` : `min_leads_${gate.minConversions}`);
+  if (gate.minConversions !== undefined && !highVolume) require(c.conversions >= gate.minConversions, c.objective === "sales" ? `min_purchases_${gate.minConversions}` : `min_leads_${gate.minConversions}`);
   if (gate.minLandingPageViews !== undefined) require(c.landingPageViews >= gate.minLandingPageViews, `min_lpv_${gate.minLandingPageViews}`);
   if (gate.minReach !== undefined) require(c.reach >= gate.minReach, `min_reach_${gate.minReach}`);
   require(c.daysActive >= gate.minDaysActive, `min_days_${gate.minDaysActive}`);
@@ -64,6 +66,13 @@ export function auditCampaigns(campaigns: HistoricalCampaign[]): AuditResult[] {
     if (ownCost > medianCost * brain.scoring.guards.killCostMultiplier && cohort.length >= minCohort) tier = "kill_candidate";
     if (cohort.length < minCohort && tier === "winner") tier = "contender";
     if (cohort.length < minCohort && tier === "kill_candidate") tier = "underperformer";
+    const floor = brain.scoring.absoluteFloor[item.campaign.objective];
+    const healthy = item.campaign.objective === "sales"
+      ? (item.metrics.roas ?? 0) >= (floor as typeof brain.scoring.absoluteFloor.sales).roas || (item.metrics.cpa ?? Infinity) <= (floor as typeof brain.scoring.absoluteFloor.sales).maxCpa
+      : item.campaign.objective === "awareness"
+        ? (item.metrics.costPerThousandReached ?? Infinity) <= (floor as typeof brain.scoring.absoluteFloor.awareness).maxCostPerThousandReached
+        : (item.metrics.cpa ?? Infinity) <= (floor as { maxCpa: number }).maxCpa;
+    if (healthy && (tier === "underperformer" || tier === "kill_candidate")) tier = "contender";
     const nuanceFlags: string[] = [];
     if (item.campaign.trackingQuality === "critical") nuanceFlags.push("tracking_gap");
     if (item.metrics.frequency && item.metrics.frequency > brain.scoring.nuance.frequencySaturationThreshold) nuanceFlags.push("audience_saturation");
@@ -72,7 +81,10 @@ export function auditCampaigns(campaigns: HistoricalCampaign[]): AuditResult[] {
     const jtdEligible = brain.jtd.jobs.find((job) => job.id === item.campaign.jtd)?.referenceEligible ?? false;
     const eligibleReference = tier === eligibility.requireTier && cohort.length >= eligibility.minCohort && item.campaign.jtdConfidence >= eligibility.minJtdConfidence && item.campaign.trackingQuality === eligibility.requireTrackingQuality && item.campaign.ageDays <= eligibility.maxAgeDays && jtdEligible;
     const strongest = [...contributions].sort((a,b) => b.contribution - a.contribution)[0];
-    return { ...item, significant: true, cohortKey, cohortSize: cohort.length, score, tier, contributions, eligibleReference, nuanceFlags, rationale: `${item.campaign.campaignId} scored ${score.toFixed(2)} in ${cohortKey}; ${strongest.metric} contributed ${strongest.contribution.toFixed(3)}.` };
+    const rationale = healthy && nuanceFlags.includes("audience_saturation")
+      ? `${item.campaign.campaignId} is healthy on absolute performance but saturating; frequency requires attention.`
+      : `${item.campaign.campaignId} scored ${score.toFixed(2)} in ${cohortKey}; ${strongest.metric} contributed ${strongest.contribution.toFixed(3)}.`;
+    return { ...item, significant: true, cohortKey, cohortSize: cohort.length, score, tier, contributions, eligibleReference, nuanceFlags, rationale };
   });
 }
 

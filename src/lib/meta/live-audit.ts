@@ -149,7 +149,8 @@ function normalizeCampaignSection(result: ToolCallResult): LiveAuditSection<Live
 function normalizeOpportunitySection(result: ToolCallResult): LiveMetaAudit["opportunity"] {
   if (result.status === "unavailable") return result;
   const decoded = decodeProviderValue(result.data);
-  const score = findNumberByKeys(decoded, ["opportunity_score", "score", "optimization_score"]);
+  const rawScore = findNumberByKeys(decoded, ["opportunity_score", "score", "optimization_score"]);
+  const score = rawScore && rawScore > 0 ? rawScore : undefined;
   const recommendations = findArrayByKeys(decoded, ["recommendations", "opportunities", "items"]);
   return { status: "ok", data: { score, recommendations }, raw: result.data };
 }
