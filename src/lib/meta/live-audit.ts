@@ -86,12 +86,11 @@ export async function runLiveMetaAudit(accessToken: string, accountId: string, a
       sort: "amount_spent_descending",
       limit: 300,
     }, context, 8_000),
-    safeToolCall(accessToken, "ads_get_ad_entities", {
-      ad_account_id: accountId, level: "adset", fields: entityFields, time_range: JSON.stringify({ since, until }), sort: "amount_spent_descending", limit: 250,
-    }, context, 4_000),
-    safeToolCall(accessToken, "ads_get_ad_entities", {
-      ad_account_id: accountId, level: "ad", fields: entityFields, time_range: JSON.stringify({ since, until }), sort: "amount_spent_descending", limit: 250,
-    }, context, 4_000),
+    // Deep hierarchy reads are intentionally deferred: account-wide ad-set/ad
+    // requests frequently time out on large accounts. Use a focused drill-down
+    // request for creative detail instead of blocking the base audit.
+    Promise.resolve({ status: "unavailable" as const, message: "Ad-set and creative detail is available via focused drill-down; not requested in the base audit." }),
+    Promise.resolve({ status: "unavailable" as const, message: "Ad-set and creative detail is available via focused drill-down; not requested in the base audit." }),
     safeToolCall(accessToken, "ads_get_opportunity_score", { ad_account_id: accountId }, context, 8_000),
     safeToolCall(accessToken, "ads_insights_performance_trend", { ad_account_id: accountId }, context, 8_000),
   ]);
