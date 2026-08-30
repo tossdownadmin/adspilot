@@ -136,7 +136,7 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
     tool_choice: input.history?.length ? "auto" : "required",
   });
 
-  const maxToolRounds = 5;
+  const maxToolRounds = 1;
   for (let pass = 0; pass < maxToolRounds; pass += 1) {
     const calls = response.output?.filter((item) => item.type === "function_call") ?? [];
     if (!calls.length) {
@@ -237,6 +237,10 @@ function auditSummary(audit: LiveMetaAudit, results: AuditResult[]) {
   return {
     source: audit.source, accountId: audit.accountId, auditId: audit.auditId, window: audit.window, retrievedAt: audit.retrievedAt,
     campaignCount: results.length,
+    topCampaigns: proactiveAudit(results),
+    adSets: audit.adSets,
+    creatives: audit.ads,
+    diagnosis: accountDiagnosisForAgent(results),
     opportunityScore: audit.opportunity.status === "ok" ? audit.opportunity.data.score ?? "Not enough data" : "Unavailable",
     deliveryIssueCount: audit.errors.status === "ok" ? audit.errors.data.count : "Unavailable",
     note: "Use get_top_campaigns, get_campaign_evidence, or get_dimension_patterns for detailed evidence.",
