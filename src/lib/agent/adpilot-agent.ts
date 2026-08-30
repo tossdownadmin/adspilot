@@ -140,9 +140,24 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
   for (let pass = 0; pass < maxToolRounds; pass += 1) {
     const calls = response.output?.filter((item) => item.type === "function_call") ?? [];
     if (!calls.length) {
+      const draft = response.output_text || outputText(response) || "";
+      const isToolPlan = /(?:going to run|pulling deeper|tool_uses|functions\.get_|live tools)/i.test(draft);
+      if (audit && isToolPlan) {
+        const finalResponse = await createResponse(config.apiKey, {
+          model: config.model, store: false,
+          instructions: `${instructions}\n\nThe previous model output was only an internal tool plan. Do not mention tools or planning. Write the completed audit now using the live evidence already returned. If a section was unavailable, say so plainly.`,
+          input: conversation,
+        });
+        return {
+          runId, source: "ADPILOT_AGENT_V1", accountId: input.accountId,
+          answer: finalResponse.output_text || outputText(finalResponse) || "The audit completed, but no report text was returned.", toolTrace: trace,
+          evidence: { auditId: audit.auditId, window: audit.window, campaignIds: results.map((result) => result.campaign.campaignId) },
+          presentation: shouldShowAuditPresentation(input) ? buildPresentation(results, audit) : undefined,
+        };
+      }
       return {
         runId, source: "ADPILOT_AGENT_V1", accountId: input.accountId,
-        answer: response.output_text || outputText(response) || "The model returned no answer.", toolTrace: trace,
+        answer: draft || "The model returned no answer.", toolTrace: trace,
         evidence: { auditId: audit?.auditId, window: audit?.window, campaignIds: results.map((result) => result.campaign.campaignId) },
         presentation: shouldShowAuditPresentation(input) ? buildPresentation(results, audit) : undefined,
       };
