@@ -31,7 +31,7 @@ export type AgentPresentation = {
   metrics: Array<{ label: string; value: string; detail: string }>;
   leaders: Array<{ name: string; objective: string; score: number; spend: number }>;
   attention: Array<{ name: string; spend: number; reason: string }>;
-  creatives: Array<{ id: string; name: string; spend: number; conversions: number; ctr: number | null; thumbnailUrl?: string; campaignId?: string }>;
+  creatives: Array<{ id: string; name: string; spend: number; conversions: number; ctr: number | null; thumbnailUrl?: string; assetUrl?: string; primaryText?: string; headline?: string; callToAction?: string; campaignId?: string }>;
 };
 
 type ResponseItem = { type?: string; name?: string; call_id?: string; arguments?: string; content?: Array<{ type?: string; text?: string }> };
@@ -369,7 +369,7 @@ function buildPresentation(results: AuditResult[], audit?: LiveMetaAudit): Agent
     ],
     leaders,
     attention: diagnosis.wasteCandidates.slice(0, 5).map(({ name, spend, reason }) => ({ name, spend, reason })),
-    creatives: audit?.ads.status === "ok" ? audit.ads.data.slice().sort((left, right) => (right.spend ?? 0) - (left.spend ?? 0)).slice(0, 5).map((ad) => ({ id: ad.id, name: ad.creativeName || ad.name, spend: ad.spend ?? 0, conversions: ad.purchases ?? ad.results ?? 0, ctr: ad.impressions && ad.impressions > 0 && ad.clicks !== undefined ? ad.clicks / ad.impressions : ad.ctr ?? null, thumbnailUrl: ad.thumbnailUrl, campaignId: ad.campaignId })) : [],
+    creatives: audit?.ads.status === "ok" ? audit.ads.data.slice().sort((left, right) => (right.spend ?? 0) - (left.spend ?? 0)).slice(0, 5).map((ad) => ({ id: ad.id, name: ad.creativeName || ad.name, spend: ad.spend ?? 0, conversions: ad.purchases ?? ad.results ?? 0, ctr: ad.impressions && ad.impressions > 0 && ad.clicks !== undefined ? ad.clicks / ad.impressions : ad.ctr ?? null, thumbnailUrl: ad.thumbnailUrl, assetUrl: ad.imageUrl ?? ad.videoUrl, primaryText: ad.primaryText, headline: ad.headline, callToAction: ad.callToAction, campaignId: ad.campaignId })) : [],
   };
 }
 
