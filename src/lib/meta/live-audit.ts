@@ -76,7 +76,7 @@ export async function runLiveMetaAudit(accessToken: string, accountId: string, a
   const entityFields = [...campaignFields, "campaign_id", "adset_id", "ad_id", "creative_id", "creative_name", "thumbnail_url", "image_url", "video_url", "body", "title", "call_to_action_type", "link_url"];
   const [fieldContext, campaignCall, adSetCall, adCall, opportunityCall, trendCall] = await Promise.all([
     // TODO(verify-schema): Meta's public MCP reference describes this tool but does not publish its current input property name.
-    safeToolCall(accessToken, "ads_get_field_context", { field_names: campaignFields }, context),
+    safeToolCall(accessToken, "ads_get_field_context", { field_names: campaignFields }, context, 6_000),
     safeToolCall(accessToken, "ads_get_ad_entities", {
       ad_account_id: accountId,
       level: "campaign",
@@ -85,15 +85,15 @@ export async function runLiveMetaAudit(accessToken: string, accountId: string, a
       time_increment: "all_days",
       sort: "amount_spent_descending",
       limit: 1000,
-    }, context),
+    }, context, 12_000),
     safeToolCall(accessToken, "ads_get_ad_entities", {
       ad_account_id: accountId, level: "adset", fields: entityFields, time_range: JSON.stringify({ since, until }), time_increment: "all_days", sort: "amount_spent_descending", limit: 1000,
     }, context, 8_000),
     safeToolCall(accessToken, "ads_get_ad_entities", {
       ad_account_id: accountId, level: "ad", fields: entityFields, time_range: JSON.stringify({ since, until }), time_increment: "all_days", sort: "amount_spent_descending", limit: 1000,
     }, context, 8_000),
-    safeToolCall(accessToken, "ads_get_opportunity_score", { ad_account_id: accountId }, context),
-    safeToolCall(accessToken, "ads_insights_performance_trend", { ad_account_id: accountId }, context),
+    safeToolCall(accessToken, "ads_get_opportunity_score", { ad_account_id: accountId }, context, 8_000),
+    safeToolCall(accessToken, "ads_insights_performance_trend", { ad_account_id: accountId }, context, 8_000),
   ]);
   const campaigns = normalizeCampaignSection(campaignCall);
   const campaignIds = campaigns.status === "ok" ? campaigns.data.slice(0, 20).map((campaign) => campaign.id) : [];
