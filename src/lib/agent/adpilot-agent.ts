@@ -131,12 +131,18 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
   if (shouldShowAuditPresentation(input)) {
     audit = await runLiveMetaAudit(accessToken, input.accountId, input.prompt);
     results = audit.campaigns.status === "ok" ? auditCampaigns(liveCampaignsToHistory(audit.campaigns.data.filter((row) => isActive(row.effectiveStatus || row.status)), audit.window)) : [];
-    const finalResponse = await createResponse(config.apiKey, {
-      model: config.model, store: false,
-      instructions: `${instructions}\n\nUse the supplied live evidence and write the completed audit directly. Do not call tools or describe tool planning.`,
-      input: [{ role: "user", content: input.prompt }, { role: "user", content: JSON.stringify(auditSummary(audit, results)) }],
-    });
-    return { runId, source: "ADPILOT_AGENT_V1", accountId: input.accountId, answer: finalResponse.output_text || outputText(finalResponse) || "The audit completed, but no report text was returned.", toolTrace: [{ tool: "get_live_account_audit", status: "ok", at: new Date().toISOString() }], evidence: { auditId: audit.auditId, window: audit.window, campaignIds: results.map((result) => result.campaign.campaignId) }, presentation: buildPresentation(results, audit) };
+    let answer: string;
+    try {
+      const finalResponse = await createResponse(config.apiKey, {
+        model: config.model, store: false,
+        instructions: `${instructions}\n\nUse the supplied live evidence and write the completed audit directly. Do not call tools or describe tool planning.`,
+        input: [{ role: "user", content: input.prompt }, { role: "user", content: JSON.stringify(auditSummary(audit, results)) }],
+      });
+      answer = finalResponse.output_text || outputText(finalResponse) || fallbackAuditAnswer(audit, results);
+    } catch {
+      answer = fallbackAuditAnswer(audit, results);
+    }
+    return { runId, source: "ADPILOT_AGENT_V1", accountId: input.accountId, answer, toolTrace: [{ tool: "get_live_account_audit", status: "ok", at: new Date().toISOString() }], evidence: { auditId: audit.auditId, window: audit.window, campaignIds: results.map((result) => result.campaign.campaignId) }, presentation: buildPresentation(results, audit) };
   }
 
   const conversation: unknown[] = [...(input.history ?? []), { role: "user", content: input.prompt }];
@@ -259,6 +265,15 @@ async function executeTool(tool: string, args: Record<string, unknown>, state: T
 
 function isActive(status?: string) {
   return !status || String(status).toUpperCase() === "ACTIVE";
+}
+
+function fallbackAuditAnswer(audit: LiveMetaAudit, results: AuditResult[]) {
+  if (!results.length) return `## Audit unavailable\n\nMeta did not return campaign rows for this ${audit.window.days}-day window. Please reconnect the account and retry.`;
+  const ranked = [...results].filter((result) => result.significant).sort((left, right) => (right.score ?? 0) - (left.score ?? 0));
+  const winners = ranked.filter((result) => result.tier === "winner").slice(0, 5);
+  const attention = [...results].filter((result) => result.tier === "underperformer" || result.tier === "kill_candidate").sort((left, right) => right.campaign.spend - left.campaign.spend).slice(0, 5);
+  const row = (result: AuditResult) => `| ${result.campaign.name.replaceAll("|", "\\|")} | ${result.campaign.objective} | $${result.campaign.spend.toFixed(2)} | ${result.metrics.roas === null ? "ROAS unavailable" : `ROAS ${result.metrics.roas.toFixed(2)}`} | ${result.tier} |`;
+  return [`## Account audit`, ``, `${results.length} active campaigns analyzed for ${audit.window.days} days.`, ``, `### Proven winners`, ``, `| Campaign | Objective | Spend | Primary result | Tier |`, `|---|---:|---:|---:|---|`, ...(winners.length ? winners.map(row) : [`| No evidence-qualified winner | — | — | — | — |`]), ``, `### Needs attention`, ``, `| Campaign | Objective | Spend | Primary result | Tier |`, `|---|---:|---:|---:|---|`, ...(attention.length ? attention.map(row) : [`| No active underperformers identified | — | — | — | — |`]), ``, `The live audit completed, but the narrative synthesis provider timed out. The tables above are generated directly from the scored Meta evidence.`].join("\n");
 }
 
 function auditSummary(audit: LiveMetaAudit, results: AuditResult[]) {

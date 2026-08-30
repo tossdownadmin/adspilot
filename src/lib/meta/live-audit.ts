@@ -97,7 +97,7 @@ export async function runLiveMetaAudit(accessToken: string, accountId: string, a
   const campaigns = normalizeCampaignSection(campaignCall);
   const campaignIds = campaigns.status === "ok" ? campaigns.data.slice(0, 20).map((campaign) => campaign.id) : [];
   const errorsCall = campaignIds.length
-    ? await safeToolCall(accessToken, "ads_get_errors", { entity_ids: campaignIds, limit: 50 }, context)
+    ? await safeToolCall(accessToken, "ads_get_errors", { entity_ids: campaignIds, limit: 50 }, context, 5_000)
     : { status: "unavailable" as const, message: "Delivery issues are unavailable because Meta returned no campaign IDs for this audit." };
 
   return {
