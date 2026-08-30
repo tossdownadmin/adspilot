@@ -384,7 +384,7 @@ function buildPresentation(results: AuditResult[], audit?: LiveMetaAudit): Agent
 async function createResponse(apiKey: string, body: Record<string, unknown>): Promise<OpenAiResponse> {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body), cache: "no-store", signal: AbortSignal.timeout(45_000),
+    body: JSON.stringify(body), cache: "no-store", signal: AbortSignal.timeout(25_000),
   });
   const payload = await response.json().catch(() => null) as OpenAiResponse & { error?: { message?: string } } | null;
   if (!response.ok || !payload) throw new AgentRuntimeError(payload?.error?.message || "The LLM provider is unavailable.");

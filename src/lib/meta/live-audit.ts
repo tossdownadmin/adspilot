@@ -85,13 +85,13 @@ export async function runLiveMetaAudit(accessToken: string, accountId: string, a
       time_range: JSON.stringify({ since, until }),
       sort: "amount_spent_descending",
       limit: 300,
-    }, context, 12_000),
+    }, context, 8_000),
     safeToolCall(accessToken, "ads_get_ad_entities", {
       ad_account_id: accountId, level: "adset", fields: entityFields, time_range: JSON.stringify({ since, until }), sort: "amount_spent_descending", limit: 250,
-    }, context, 8_000),
+    }, context, 4_000),
     safeToolCall(accessToken, "ads_get_ad_entities", {
       ad_account_id: accountId, level: "ad", fields: entityFields, time_range: JSON.stringify({ since, until }), sort: "amount_spent_descending", limit: 250,
-    }, context, 8_000),
+    }, context, 4_000),
     safeToolCall(accessToken, "ads_get_opportunity_score", { ad_account_id: accountId }, context, 8_000),
     safeToolCall(accessToken, "ads_insights_performance_trend", { ad_account_id: accountId }, context, 8_000),
   ]);
