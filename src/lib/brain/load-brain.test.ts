@@ -16,7 +16,7 @@ describe("AdPilot brain loader", () => {
     expect(brain.scoring.tierThresholds).toEqual({ winner: 0.75, contender: 0.55, underperformer: 0.3 });
     expect(brain.scoring.guards).toEqual({ salesRoasMultiplier: 1.2, costGuardMultiplier: 0.8, killCostMultiplier: 2 });
     expect(brain.scoring.cohort.minForRelativeScoring).toBe(5);
-    expect(brain.scoring.nuance.frequencySaturationThreshold).toBe(2.1);
+    expect(brain.scoring.nuance.frequencySaturationThreshold).toBe(6);
     expect(brain.scoring.normalization.tieValue).toBe(0.5);
     expect(brain.significance.gates.sales).toEqual({ minSpend: 100, minImpressions: 10000, minConversions: 15, minDaysActive: 5 });
     expect(brain.objectiveRules.budgetTiers.map((tier) => tier.maxDailyBudgetExclusive)).toEqual([50, 150, null]);
