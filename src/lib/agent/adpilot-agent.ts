@@ -126,6 +126,19 @@ export async function runAdPilotAgent(input: AgentRunInput, accessToken: string)
     brainProse,
   ].join("\n\n");
 
+  // Standard audits do not need model tool selection; fetch the bounded
+  // evidence package directly, then spend the hosted budget on one synthesis.
+  if (shouldShowAuditPresentation(input)) {
+    audit = await runLiveMetaAudit(accessToken, input.accountId, input.prompt);
+    results = audit.campaigns.status === "ok" ? auditCampaigns(liveCampaignsToHistory(audit.campaigns.data.filter((row) => isActive(row.effectiveStatus || row.status)), audit.window)) : [];
+    const finalResponse = await createResponse(config.apiKey, {
+      model: config.model, store: false,
+      instructions: `${instructions}\n\nUse the supplied live evidence and write the completed audit directly. Do not call tools or describe tool planning.`,
+      input: [{ role: "user", content: input.prompt }, { role: "user", content: JSON.stringify(auditSummary(audit, results)) }],
+    });
+    return { runId, source: "ADPILOT_AGENT_V1", accountId: input.accountId, answer: finalResponse.output_text || outputText(finalResponse) || "The audit completed, but no report text was returned.", toolTrace: [{ tool: "get_live_account_audit", status: "ok", at: new Date().toISOString() }], evidence: { auditId: audit.auditId, window: audit.window, campaignIds: results.map((result) => result.campaign.campaignId) }, presentation: buildPresentation(results, audit) };
+  }
+
   const conversation: unknown[] = [...(input.history ?? []), { role: "user", content: input.prompt }];
   let response = await createResponse(config.apiKey, {
     model: config.model,
