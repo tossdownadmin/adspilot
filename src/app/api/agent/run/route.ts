@@ -1,15 +1,13 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { AgentConfigurationError, AgentRuntimeError, parseAgentInput, runAdPilotAgent } from "@/lib/agent/adpilot-agent";
-import { shouldShowAuditPresentation } from "@/lib/agent/adpilot-agent";
-import { startAuditJob } from "@/lib/audit/job-runner";
+import { AgentConfigurationError, AgentRuntimeError, parseAgentInput, runAdPilotAgent, shouldShowAuditPresentation } from "@/lib/agent/adpilot-agent";
 import { getMetaSession, META_SESSION_COOKIE } from "@/lib/meta/session-store";
 
 export const runtime = "nodejs";
-// The start route only creates the job and returns 202. Polling advances one
-// bounded stage per request, so no single request owns the complete audit.
-// Multi-instance durability still requires a shared job store in a later phase.
-export const maxDuration = 120;
+// Non-audit (chat / playbook) still answers synchronously here. Give it headroom;
+// 300s is the Vercel Pro ceiling. If the playbook path also times out in prod,
+// it needs the same streaming treatment as the audit (see notes).
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const cookieStore = await cookies();
@@ -18,8 +16,9 @@ export async function POST(request: Request) {
   try {
     const input = parseAgentInput(await request.json().catch(() => null));
     if (shouldShowAuditPresentation(input)) {
-      const job = startAuditJob({ accountId: input.accountId, prompt: input.prompt }, session.accessToken);
-      return NextResponse.json({ jobId: job.jobId, status: job.status }, { status: 202, headers: { "Cache-Control": "no-store" } });
+      // Classify only. The SSE stream route creates AND runs the staged audit
+      // inside one request, so no job state must survive across instances.
+      return NextResponse.json({ mode: "audit" }, { status: 202, headers: { "Cache-Control": "no-store" } });
     }
     const run = await runAdPilotAgent(input, session.accessToken);
     return NextResponse.json(run, { headers: { "Cache-Control": "no-store" } });
