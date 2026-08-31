@@ -4,6 +4,7 @@ export const META_READ_TOOLS = [
   "ads_get_ad_accounts",
   "ads_get_field_context",
   "ads_get_ad_entities",
+  "ads_get_creatives",
   "ads_get_opportunity_score",
   "ads_get_errors",
   "ads_insights_advertiser_context",

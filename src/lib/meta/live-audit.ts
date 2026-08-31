@@ -32,6 +32,7 @@ export type LiveCampaignRow = {
   stopTime?: string;
   creativeFormat?: string;
   creativeName?: string;
+  creativeId?: string;
   thumbnailUrl?: string;
   imageUrl?: string;
   videoUrl?: string;
@@ -238,6 +239,7 @@ function normalizeCampaign(value: unknown): LiveCampaignRow | undefined {
     startTime: stringValue(row.start_time),
     stopTime: stringValue(row.stop_time),
     creativeName: stringValue(firstValue(row, ["creative_name", "creativeName"])),
+    creativeId: stringValue(firstValue(row, ["creative_id", "creativeId"])),
     thumbnailUrl: stringValue(firstValue(row, ["thumbnail_url", "thumbnailUrl"])),
     imageUrl: stringValue(firstValue(row, ["image_url", "imageUrl"])),
     videoUrl: stringValue(firstValue(row, ["video_url", "videoUrl"])),

@@ -433,7 +433,7 @@ function accountDiagnosisForAgent(results: AuditResult[]) {
   };
 }
 
-function buildPresentation(results: AuditResult[], audit?: LiveMetaAudit): AgentPresentation | undefined {
+export function buildPresentation(results: AuditResult[], audit?: LiveMetaAudit): AgentPresentation | undefined {
   if (!results.length) return undefined;
   const diagnosis = buildAccountDiagnosis(results);
   const leaders = Object.entries(diagnosis.bestByObjective)

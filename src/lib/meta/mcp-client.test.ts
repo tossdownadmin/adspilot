@@ -5,6 +5,7 @@ describe("Meta Ads MCP read boundary", () => {
   afterEach(() => vi.unstubAllGlobals());
   it("allows documented read tools", () => {
     expect(() => assertMetaReadTool("ads_get_ad_entities")).not.toThrow();
+    expect(() => assertMetaReadTool("ads_get_creatives")).not.toThrow();
     expect(() => assertMetaReadTool("ads_get_errors")).not.toThrow();
   });
 
