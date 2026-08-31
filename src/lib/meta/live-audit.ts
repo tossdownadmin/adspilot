@@ -75,7 +75,7 @@ export async function runLiveMetaAudit(accessToken: string, accountId: string, a
     "offsite_conversion_fb_pixel_purchase_values", "omni_purchase_values", "purchase_roas", "website_purchase_roas", "daily_budget", "created_time", "start_time", "stop_time",
   ];
   const entityFields = [...campaignFields, "campaign_id", "adset_id", "ad_id", "creative_id", "creative_name", "thumbnail_url", "image_url", "video_url", "body", "title", "call_to_action_type", "link_url"];
-  const [fieldContext, campaignCall, adSetCall, adCall, opportunityCall, trendCall] = await Promise.all([
+  const [fieldContext, campaignCall, opportunityCall, trendCall] = await Promise.all([
     // TODO(verify-schema): Meta's public MCP reference describes this tool but does not publish its current input property name.
     safeToolCall(accessToken, "ads_get_field_context", { field_names: campaignFields }, context, 6_000),
     safeToolCall(accessToken, "ads_get_ad_entities", {
@@ -86,19 +86,33 @@ export async function runLiveMetaAudit(accessToken: string, accountId: string, a
       sort: "amount_spent_descending",
       limit: 300,
     }, context, 8_000),
-    // Deep hierarchy reads are intentionally deferred: account-wide ad-set/ad
-    // requests frequently time out on large accounts. Use a focused drill-down
-    // request for creative detail instead of blocking the base audit.
-    Promise.resolve({ status: "unavailable" as const, message: "Ad-set and creative detail is available via focused drill-down; not requested in the base audit." }),
-    Promise.resolve({ status: "unavailable" as const, message: "Ad-set and creative detail is available via focused drill-down; not requested in the base audit." }),
     safeToolCall(accessToken, "ads_get_opportunity_score", { ad_account_id: accountId }, context, 8_000),
     safeToolCall(accessToken, "ads_insights_performance_trend", { ad_account_id: accountId }, context, 8_000),
   ]);
   const campaigns = normalizeCampaignSection(campaignCall);
-  const campaignIds = campaigns.status === "ok" ? campaigns.data.slice(0, 20).map((campaign) => campaign.id) : [];
-  const errorsCall = campaignIds.length
-    ? await safeToolCall(accessToken, "ads_get_errors", { entity_ids: campaignIds, limit: 50 }, context, 5_000)
-    : { status: "unavailable" as const, message: "Delivery issues are unavailable because Meta returned no campaign IDs for this audit." };
+  // Enrich only the five highest-spend campaigns. This preserves the fast
+  // account overview while making the report useful for ad-set/creative review.
+  const campaignIds = campaigns.status === "ok" ? campaigns.data.slice(0, 5).map((campaign) => campaign.id) : [];
+  const hierarchyFilter = campaignIds.length
+    ? [{ field: "campaign_id", operator: "IN", value: campaignIds }]
+    : undefined;
+  const [adSetCall, adCall, errorsCall] = campaignIds.length
+    ? await Promise.all([
+      safeToolCall(accessToken, "ads_get_ad_entities", {
+        ad_account_id: accountId, level: "adset", fields: entityFields,
+        filtering: hierarchyFilter, time_range: JSON.stringify({ since, until }), sort: "amount_spent_descending", limit: 100,
+      }, context, 8_000),
+      safeToolCall(accessToken, "ads_get_ad_entities", {
+        ad_account_id: accountId, level: "ad", fields: entityFields,
+        filtering: hierarchyFilter, time_range: JSON.stringify({ since, until }), sort: "amount_spent_descending", limit: 150,
+      }, context, 8_000),
+      safeToolCall(accessToken, "ads_get_errors", { entity_ids: campaignIds, limit: 50 }, context, 5_000),
+    ])
+    : [
+      { status: "unavailable" as const, message: "Ad-set detail is unavailable because Meta returned no campaign IDs for this audit." },
+      { status: "unavailable" as const, message: "Creative detail is unavailable because Meta returned no campaign IDs for this audit." },
+      { status: "unavailable" as const, message: "Delivery issues are unavailable because Meta returned no campaign IDs for this audit." },
+    ];
 
   return {
     schemaVersion: "1.0",

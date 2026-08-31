@@ -42,6 +42,12 @@ describe("live Meta audit orchestration", () => {
     const errorsRequest = requests.find((request) => request.params.name === "ads_get_errors");
     expect(errorsRequest?.params.arguments.entity_ids).toEqual(["cmp-top", "cmp-low"]);
     expect(errorsRequest?.params.arguments.entity_ids).not.toContain("720643091975703");
+    const hierarchyRequests = requests.filter((request) => request.params.name === "ads_get_ad_entities");
+    expect(hierarchyRequests.some((request) => request.params.arguments.level === "adset")).toBe(true);
+    expect(hierarchyRequests.some((request) => request.params.arguments.level === "ad")).toBe(true);
+    expect(hierarchyRequests.find((request) => request.params.arguments.level === "ad")?.params.arguments.filtering).toEqual([
+      { field: "campaign_id", operator: "IN", value: ["cmp-top", "cmp-low"] },
+    ]);
     const trendRequest = requests.find((request) => request.params.name === "ads_insights_performance_trend");
     expect(trendRequest?.params.arguments).not.toHaveProperty("analysis_metric");
     expect(trendRequest?.params.arguments).not.toHaveProperty("time_range");

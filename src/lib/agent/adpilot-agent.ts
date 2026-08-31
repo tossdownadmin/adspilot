@@ -287,8 +287,8 @@ function auditSummary(audit: LiveMetaAudit, results: AuditResult[]) {
     topSpendCampaigns: proactiveAudit(results),
     objectiveLeaders: byScore.slice(0, 10).map(compactCampaign),
     activeAttention: bySpend.filter((result) => result.tier === "underperformer" || result.tier === "kill_candidate").slice(0, 10).map(compactCampaign),
-    adSets: audit.adSets,
-    creatives: audit.ads,
+    adSets: compactLiveSection(audit.adSets, 30),
+    creatives: compactLiveSection(audit.ads, 50),
     diagnosis: accountDiagnosisForAgent(results),
     opportunity: audit.opportunity.status === "ok"
       ? { score: audit.opportunity.data.score ?? "Not enough data", recommendations: audit.opportunity.data.recommendations.slice(0, 10) }
@@ -299,6 +299,21 @@ function auditSummary(audit: LiveMetaAudit, results: AuditResult[]) {
     weekOverWeekTrend: audit.trend.status === "ok" ? boundedEvidence(audit.trend.data) : { status: "unavailable", message: audit.trend.message },
     dataGaps: [audit.adSets, audit.ads].filter((section) => section.status === "unavailable").map((section) => section.status === "unavailable" ? section.message : ""),
   };
+}
+
+function compactLiveSection(section: LiveMetaAudit["adSets"], limit: number) {
+  if (section.status === "unavailable") return section;
+  return { status: "ok", data: section.data.slice(0, limit).map((item) => ({
+    id: item.id, campaignId: item.campaignId ?? null, adSetId: item.adSetId ?? null,
+    name: item.creativeName || item.name, objective: item.objective ?? "Not returned",
+    status: item.effectiveStatus || item.status || "Not returned", spend: item.spend ?? 0,
+    impressions: item.impressions ?? null, clicks: item.clicks ?? null, reach: item.reach ?? null,
+    ctr: item.ctr ?? null, cpc: item.cpc ?? null, cpm: item.cpm ?? null,
+    frequency: item.frequency ?? null, conversions: item.purchases ?? item.results ?? 0,
+    costPerResult: item.costPerResult ?? null, creativeFormat: item.creativeFormat ?? "Not enough data",
+    thumbnailUrl: item.thumbnailUrl ?? null, assetUrl: item.imageUrl ?? item.videoUrl ?? null,
+    primaryText: item.primaryText ?? null, headline: item.headline ?? null, callToAction: item.callToAction ?? null,
+  })) };
 }
 
 function boundedEvidence(value: unknown, maxCharacters = 6_000) {
