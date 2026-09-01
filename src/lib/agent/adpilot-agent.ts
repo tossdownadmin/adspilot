@@ -32,6 +32,9 @@ export type AgentPresentation = {
   leaders: Array<{ name: string; objective: string; score: number; spend: number }>;
   attention: Array<{ name: string; spend: number; reason: string }>;
   creatives: Array<{ id: string; name: string; spend: number; conversions: number; ctr: number | null; thumbnailUrl?: string; assetUrl?: string; primaryText?: string; headline?: string; callToAction?: string; campaignId?: string }>;
+  campaigns: Array<{ id: string; name: string; objective: string; spend: number; score: number | null; tier: string; deliveryStatus: string; roas: number | null; cpa: number | null; frequency: number | null; verdict: string }>;
+  adSets: Array<{ id: string; name: string; campaignId?: string; spend: number; outcomes: number; ctr: number | null; frequency: number | null; deliveryStatus: string }>;
+  ads: Array<{ id: string; name: string; campaignId?: string; adSetId?: string; spend: number; outcomes: number; ctr: number | null; frequency: number | null; deliveryStatus: string; thumbnailUrl?: string; assetUrl?: string }>;
 };
 
 type ResponseItem = { type?: string; name?: string; call_id?: string; arguments?: string; content?: Array<{ type?: string; text?: string }> };
@@ -452,7 +455,18 @@ export function buildPresentation(results: AuditResult[], audit?: LiveMetaAudit)
     leaders,
     attention: diagnosis.wasteCandidates.slice(0, 5).map(({ name, spend, reason }) => ({ name, spend, reason })),
     creatives: audit?.ads.status === "ok" ? audit.ads.data.slice().sort((left, right) => (right.spend ?? 0) - (left.spend ?? 0)).slice(0, 5).map((ad) => ({ id: ad.id, name: ad.creativeName || ad.name, spend: ad.spend ?? 0, conversions: ad.purchases ?? ad.results ?? 0, ctr: ad.impressions && ad.impressions > 0 && ad.clicks !== undefined ? ad.clicks / ad.impressions : ad.ctr ?? null, thumbnailUrl: ad.thumbnailUrl, assetUrl: ad.imageUrl ?? ad.videoUrl, primaryText: ad.primaryText, headline: ad.headline, callToAction: ad.callToAction, campaignId: ad.campaignId })) : [],
+    campaigns: results.map((result) => ({ id: result.campaign.campaignId, name: result.campaign.name, objective: result.campaign.objective, spend: result.campaign.spend, score: result.significant ? result.score : null, tier: result.tier, deliveryStatus: result.campaign.deliveryStatus || "Not returned", roas: result.metrics.roas, cpa: result.metrics.cpa, frequency: result.metrics.frequency, verdict: campaignVerdictLabel(result) })),
+    adSets: audit?.adSets.status === "ok" ? audit.adSets.data.map((row) => ({ id: row.id, name: row.name, campaignId: row.campaignId, spend: row.spend ?? 0, outcomes: row.purchases ?? row.results ?? 0, ctr: row.impressions && row.impressions > 0 && row.clicks !== undefined ? row.clicks / row.impressions : row.ctr ?? null, frequency: row.frequency ?? null, deliveryStatus: row.effectiveStatus || row.status || "Not returned" })) : [],
+    ads: audit?.ads.status === "ok" ? audit.ads.data.map((row) => ({ id: row.id, name: row.creativeName || row.name, campaignId: row.campaignId, adSetId: row.adSetId, spend: row.spend ?? 0, outcomes: row.purchases ?? row.results ?? 0, ctr: row.impressions && row.impressions > 0 && row.clicks !== undefined ? row.clicks / row.impressions : row.ctr ?? null, frequency: row.frequency ?? null, deliveryStatus: row.effectiveStatus || row.status || "Not returned", thumbnailUrl: row.thumbnailUrl, assetUrl: row.imageUrl ?? row.videoUrl })) : [],
   };
+}
+
+function campaignVerdictLabel(result: AuditResult) {
+  if (result.tier === "winner") return "Winner";
+  if (result.tier === "contender") return "Contender";
+  if (result.tier === "kill_candidate") return "Kill candidate";
+  if (!result.significant) return "Insufficient data";
+  return result.tier.replaceAll("_", " ");
 }
 
 async function createResponse(apiKey: string, body: Record<string, unknown>, timeoutMs = 15_000): Promise<OpenAiResponse> {
