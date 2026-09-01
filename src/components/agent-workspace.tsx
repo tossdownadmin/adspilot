@@ -23,15 +23,30 @@ export function AgentWorkspace({ account, onChooseAccount }: { account: { id: st
   const [error, setError] = useState("");
   const [auditJob, setAuditJob] = useState<AuditJobSnapshot>();
 
-  async function pollAudit(jobId: string) {
+  async function streamAudit(accountId: string, request: string) {
+    const response = await fetch(`/api/agent/stream?accountId=${encodeURIComponent(accountId)}&prompt=${encodeURIComponent(request)}`, { cache: "no-store" });
+    if (!response.ok || !response.body) throw new Error(await response.text() || "The live audit stream could not be opened.");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let completed: AuditJobSnapshot | undefined;
     for (;;) {
-      const response = await fetch(`/api/agent/status?jobId=${encodeURIComponent(jobId)}`, { cache: "no-store" });
-      const job = await response.json() as AuditJobSnapshot & { message?: string; error?: string };
-      if (!response.ok) throw new Error(job.message || job.error || "The audit job could not be recovered.");
-      setAuditJob(job);
-      if (job.status !== "running") return job;
-      await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
+      for (const raw of events) {
+        const eventName = raw.match(/^event: (.+)$/m)?.[1];
+        const data = raw.match(/^data: (.+)$/m)?.[1];
+        if (!data || (eventName !== "snapshot" && eventName !== "progress" && eventName !== "complete")) continue;
+        const payload = JSON.parse(data) as AuditJobSnapshot;
+        if (eventName === "snapshot" || eventName === "complete") setAuditJob(payload);
+        if (eventName === "complete") completed = payload;
+      }
     }
+    if (!completed) throw new Error("The audit stream ended before a complete report was assembled.");
+    return completed;
   }
 
   async function submit(event?: FormEvent) {
@@ -49,9 +64,9 @@ export function AgentWorkspace({ account, onChooseAccount }: { account: { id: st
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accountId: account.id, prompt: request, history, conversationId }),
       });
-      const body = await response.json() as { jobId?: string; answer?: string; message?: string; error?: string; toolTrace?: Array<{ tool: string; status: "ok" | "error" }>; presentation?: AgentPresentation };
-      if (response.status === 202 && body.jobId) {
-        const job = await pollAudit(body.jobId);
+      const body = await response.json() as { mode?: string; jobId?: string; answer?: string; message?: string; error?: string; toolTrace?: Array<{ tool: string; status: "ok" | "error" }>; presentation?: AgentPresentation };
+      if (response.status === 202 && body.mode === "audit") {
+        const job = await streamAudit(account.id, request);
         if (job.status !== "complete" || !job.report.answer) throw new Error("The staged audit finished without an assembled report.");
         setMessages((current) => [...current, { role: "assistant", content: job.report.answer!, presentation: job.report.presentation }]);
         return;

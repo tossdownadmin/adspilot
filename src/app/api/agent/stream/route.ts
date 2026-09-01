@@ -42,6 +42,7 @@ export async function GET(request: Request) {
       unsubscribe = subscribeAuditJob(jobId, (progress: AuditProgressEvent | null) => {
         if (progress) {
           controller.enqueue(sse("progress", progress));
+          controller.enqueue(sse("snapshot", getAuditJob(jobId)));
         } else {
           controller.enqueue(sse("complete", getAuditJob(jobId)));
           safeClose();
